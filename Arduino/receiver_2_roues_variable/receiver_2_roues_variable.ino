@@ -6,18 +6,17 @@ String readBuffer = "";
 float valueX, valueY;
 bool bouton;
 
-// Définition des broches pour chaque moteur
-const int motor1Pin1 = 4; // Avant gauche
-const int motor1Pin2 = 5;
-const int motor2Pin1 = 2; // Avant droit
-const int motor2Pin2 = 3;
-const int motor3Pin1 = 6; // Arrière gauche
-const int motor3Pin2 = 7;
-const int motor4Pin1 = 8; // Arrière droit
-const int motor4Pin2 = 9;
+float delta = 0.2;
 
-// Vitesse fixe des moteurs (entre 0 et 255)
-const int vitesseConstante = 200;
+// Définition des broches pour les moteurs avant
+const int motor1Pin1 = 6; // Avant gauche
+const int motor1Pin2 = 7;
+const int motor2Pin1 = 8; // Avant droit
+const int motor2Pin2 = 9;
+
+// Définition des limites pour le calcul de la vitesse
+const int vitesseMax = 255;
+const float milieu = 2.5;
 
 void setup() {
   Serial.begin(9600); // Open serial port to computer
@@ -28,10 +27,6 @@ void setup() {
   pinMode(motor1Pin2, OUTPUT);
   pinMode(motor2Pin1, OUTPUT);
   pinMode(motor2Pin2, OUTPUT);
-  pinMode(motor3Pin1, OUTPUT);
-  pinMode(motor3Pin2, OUTPUT);
-  pinMode(motor4Pin1, OUTPUT);
-  pinMode(motor4Pin2, OUTPUT);
 }
 
 void loop() {
@@ -71,20 +66,24 @@ void afficherDonnees() {
 
 // Fonction pour contrôler les moteurs en fonction de la position du joystick
 void controlerMoteurs() {
-  if (bouton) { // Si le bouton est actif, on arrête tous les moteurs
+  if (!bouton) { // Si le bouton est actif, on arrête tous les moteurs
     arreterMoteurs();
     return;
   }
 
+  // Calcul des vitesses en fonction de l'axe X et Y
+  int vitesseY = map(abs(valueY - milieu), 0, 2.5, 0, vitesseMax);
+  int vitesseX = map(abs(valueX - milieu), 0, 2.5, 0, vitesseMax);
+
   // Contrôler les moteurs pour avancer, reculer, tourner à droite ou à gauche
-  if (valueY > 2.5) { // Avancer si la valeur Y est supérieure au milieu
-    avancer();
-  } else if (valueY < 2.5) { // Reculer si la valeur Y est inférieure au milieu
-    reculer();
-  } else if (valueX > 2.5) { // Tourner à droite si la valeur X est supérieure au milieu
-    tournerDroite();
-  } else if (valueX < 2.5) { // Tourner à gauche si la valeur X est inférieure au milieu
-    tournerGauche();
+  if (valueY > milieu + delta) { // Avancer si la valeur Y est supérieure au milieu
+    avancer(vitesseY);
+  } else if (valueY < milieu - delta) { // Reculer si la valeur Y est inférieure au milieu
+    reculer(vitesseY);
+  } else if (valueX > milieu + delta) { // Tourner à droite si la valeur X est supérieure au milieu
+    tournerDroite(vitesseX);
+  } else if (valueX < milieu - delta) { // Tourner à gauche si la valeur X est inférieure au milieu
+    tournerGauche(vitesseX);
   } else { // Si aucune condition n'est remplie, arrêter les moteurs
     arreterMoteurs();
   }
@@ -96,56 +95,36 @@ void arreterMoteurs() {
   digitalWrite(motor1Pin2, LOW);
   digitalWrite(motor2Pin1, LOW);
   digitalWrite(motor2Pin2, LOW);
-  digitalWrite(motor3Pin1, LOW);
-  digitalWrite(motor3Pin2, LOW);
-  digitalWrite(motor4Pin1, LOW);
-  digitalWrite(motor4Pin2, LOW);
 }
 
-// Fonction pour faire avancer tous les moteurs
-void avancer() {
-  analogWrite(motor1Pin1, vitesseConstante);
+// Fonction pour faire avancer les moteurs avant avec une vitesse variable
+void avancer(int vitesse) {
+  analogWrite(motor1Pin1, vitesse);
   digitalWrite(motor1Pin2, LOW);
-  analogWrite(motor2Pin1, vitesseConstante);
+  analogWrite(motor2Pin1, vitesse);
   digitalWrite(motor2Pin2, LOW);
-  analogWrite(motor3Pin1, vitesseConstante);
-  digitalWrite(motor3Pin2, LOW);
-  analogWrite(motor4Pin1, vitesseConstante);
-  digitalWrite(motor4Pin2, LOW);
 }
 
-// Fonction pour faire reculer tous les moteurs
-void reculer() {
+// Fonction pour faire reculer les moteurs avant avec une vitesse variable
+void reculer(int vitesse) {
   digitalWrite(motor1Pin1, LOW);
-  analogWrite(motor1Pin2, vitesseConstante);
+  analogWrite(motor1Pin2, vitesse);
   digitalWrite(motor2Pin1, LOW);
-  analogWrite(motor2Pin2, vitesseConstante);
-  digitalWrite(motor3Pin1, LOW);
-  analogWrite(motor3Pin2, vitesseConstante);
-  digitalWrite(motor4Pin1, LOW);
-  analogWrite(motor4Pin2, vitesseConstante);
+  analogWrite(motor2Pin2, vitesse);
 }
 
-// Fonction pour tourner à droite
-void tournerDroite() {
-  analogWrite(motor1Pin1, vitesseConstante);
+// Fonction pour tourner à droite avec une vitesse variable
+void tournerDroite(int vitesse) {
+  analogWrite(motor1Pin1, vitesse);
   digitalWrite(motor1Pin2, LOW);
   digitalWrite(motor2Pin1, LOW);
-  analogWrite(motor2Pin2, vitesseConstante);
-  analogWrite(motor3Pin1, vitesseConstante);
-  digitalWrite(motor3Pin2, LOW);
-  digitalWrite(motor4Pin1, LOW);
-  analogWrite(motor4Pin2, vitesseConstante);
+  analogWrite(motor2Pin2, vitesse);
 }
 
-// Fonction pour tourner à gauche
-void tournerGauche() {
+// Fonction pour tourner à gauche avec une vitesse variable
+void tournerGauche(int vitesse) {
   digitalWrite(motor1Pin1, LOW);
-  analogWrite(motor1Pin2, vitesseConstante);
-  analogWrite(motor2Pin1, vitesseConstante);
+  analogWrite(motor1Pin2, vitesse);
+  analogWrite(motor2Pin1, vitesse);
   digitalWrite(motor2Pin2, LOW);
-  digitalWrite(motor3Pin1, LOW);
-  analogWrite(motor3Pin2, vitesseConstante);
-  analogWrite(motor4Pin1, vitesseConstante);
-  digitalWrite(motor4Pin2, LOW);
 }
