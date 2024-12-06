@@ -9,7 +9,7 @@ from functions_final import *
 
 def main():
     
-    video_path = 0  # 0 pour la webcam
+    video_path = 1  # 0 pour la webcam
     cap, w, h, fps = get_video_params(video_path)
     out = cv2.VideoWriter("lessgo.mp4", cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
 
