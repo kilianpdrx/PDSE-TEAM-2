@@ -160,7 +160,15 @@ class IMX500Detector:
             
         labels = self.get_labels()
         with MappedArray(request, stream) as m:
+            
+            cv2.line(m.array, (center_x, 0), (center_x, h), GREEN, 1)  # Ligne verticale (vert)
+            cv2.line(m.array, (0, center_y), (w, center_y), GREEN, 1)  # Ligne horizontale (vert)
+    
+
+
             for detection in self.last_results:
+                if int(detection.category) > len(labels)-1:
+                    continue
                 label = labels[int(detection.category)]
                 if label != "person": #we are only interested in people
                     continue
@@ -188,9 +196,7 @@ class IMX500Detector:
                 cv2.circle(m.array, (mid_x,mid_y), 5, BLUE, -1)  # Dessiner un cercle au centre de la boîte
                 cv2.line(m.array, (center_x, center_y), (mid_x,mid_y), RED, 2)  # Ligne de trajectoire (rouge)
             
-            cv2.line(m.array, (center_x, 0), (center_x, h), GREEN, 1)  # Ligne verticale (vert)
-            cv2.line(m.array, (0, center_y), (w, center_y), GREEN, 1)  # Ligne horizontale (vert)
-    
+            
 
 
 

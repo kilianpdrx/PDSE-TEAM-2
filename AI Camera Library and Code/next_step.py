@@ -3,7 +3,13 @@ import time
 import cv2
 
 
-camera = IMX500Detector("/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk")
+# model = "/usr/share/imx500-models/imx500_network_nanodet_plus_416x416.rpk"
+# model = "/usr/share/imx500-models/imx500_network_nanodet_plus_416x416_pp.rpk"
+model = "/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk"
+
+
+
+camera = IMX500Detector(model)
 
 # Start the detector with preview window
 camera.start(show_preview=True)
@@ -35,6 +41,8 @@ try:
         labels = camera.get_labels()
 
         for detection in detections:
+            if int(detection.category) > len(labels)-1:
+                continue
             label = labels[int(detection.category)]
             confidence = detection.conf
             # if label == "person" and confidence > 0.4:
