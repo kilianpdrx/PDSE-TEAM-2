@@ -1,7 +1,7 @@
 from ai_camera import IMX500Detector
 import time
 import cv2
-from functions_final import *
+
 
 camera = IMX500Detector("/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk")
 
