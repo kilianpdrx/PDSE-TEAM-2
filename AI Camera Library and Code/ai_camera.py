@@ -7,6 +7,16 @@ import numpy as np
 from picamera2 import MappedArray, Picamera2
 from picamera2.devices import IMX500
 from picamera2.devices.imx500 import NetworkIntrinsics, postprocess_nanodet_detection
+from torchreid.utils import FeatureExtractor
+import torch
+
+
+GREEN = (0, 255, 0)
+RED = (0, 0, 255)
+BLUE = (255, 0, 0)
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+
 
 class IMX500Detector:
     def __init__(self, model_path="/usr/share/imx500-models/imx500_network_yolov8n_pp.rpk"):
@@ -50,7 +60,7 @@ class IMX500Detector:
         if self.intrinsics.preserve_aspect_ratio:
             self.imx500.set_auto_aspect_ratio()
             
-        self.picam2.pre_callback = self._draw_detections
+        self.picam2.pre_callback = self._draw_detections_modif
         
     def stop(self):
         """Stop the detector"""
@@ -138,28 +148,52 @@ class IMX500Detector:
                 )
                 cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
     
-    
-    def maxi_test(self, request, stream="main", center_x=320, center_y=240, w=640, h=480):
+    def _draw_detections_modif(self, request, stream="main"):
+        """Internal method to draw detections"""
+
+        center_x=320
+        center_y=240
+        w=640
+        h=480
+
 
         if self.last_results is None:
             return
             
-
+        labels = self.get_labels()
         with MappedArray(request, stream) as m:
             for detection in self.last_results:
+                label = labels[int(detection.category)]
+                if label != "person": #we are only interested in people
+                    continue
+
                 x, y, w, h = detection.box
-                
+                label_txt = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
+
+                (text_width, text_height), baseline = cv2.getTextSize(label_txt, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                text_x = x + 5
+                text_y = y + 15
+
                 overlay = m.array.copy()
-                
+                cv2.rectangle(overlay,(text_x, text_y - text_height),(text_x + text_width, text_y + baseline),BLACK,cv2.FILLED)
+
+                alpha = 0.30
+                cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
+                cv2.putText(m.array, label_txt, (text_x, text_y),cv2.FONT_HERSHEY_SIMPLEX, 0.5, RED, 1)
+                cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
+
 
                 mid_x = int(x + w / 2)
                 mid_y = int(y + h / 2)
                 
                 
-                cv2.circle(m.array, (mid_x,mid_y), 5, (255, 0, 0), -1)  # Dessiner un cercle au centre de la boîte
-                cv2.line(m.array, (center_x, center_y), (mid_x,mid_y), (0, 0, 255), 2)  # Ligne de trajectoire (rouge)
-                
-                
+                cv2.circle(m.array, (mid_x,mid_y), 5, BLUE, -1)  # Dessiner un cercle au centre de la boîte
+                cv2.line(m.array, (center_x, center_y), (mid_x,mid_y), RED, 2)  # Ligne de trajectoire (rouge)
+            
+            cv2.line(m.array, (center_x, 0), (center_x, h), GREEN, 1)  # Ligne verticale (vert)
+            cv2.line(m.array, (0, center_y), (w, center_y), GREEN, 1)  # Ligne horizontale (vert)
+    
+
 
 
 

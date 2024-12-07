@@ -1,5 +1,7 @@
 from ai_camera import IMX500Detector
 import time
+import cv2
+from functions_final import *
 
 camera = IMX500Detector("/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk")
 
@@ -29,7 +31,6 @@ try:
         frame_start_time = time.time()
 
         # Récupérer les détections
-        request = camera.picam2.capture_request()
         detections = camera.get_detections()
         labels = camera.get_labels()
 
@@ -41,13 +42,21 @@ try:
 
 
 
-        camera.maxi_test(request)
-        request.release()
+
+
+
+        # frame = camera.picam2.capture_array()
+        # camera.maxi_test(frame)
+        # cv2.imshow("Frame", frame)
+        # cv2.waitKey(1)
+        
+        
 
 
 
 
         frame_processing_time = time.time() - frame_start_time
+        print(f"FPS: {1 / frame_processing_time:.2f}")
         total_processing_time += frame_processing_time
         frame_count += 1
 
