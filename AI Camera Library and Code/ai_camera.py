@@ -35,6 +35,7 @@ class IMX500Detector:
         
         # Initialize camera
         self.picam2 = Picamera2(self.imx500.camera_num)
+
         
     def start(self, show_preview=True):
         """Start the detector"""
@@ -136,6 +137,32 @@ class IMX500Detector:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1
                 )
                 cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
+    
+    
+    def maxi_test(self, request, stream="main", center_x=320, center_y=240, w=640, h=480):
+
+        if self.last_results is None:
+            return
+            
+
+        with MappedArray(request, stream) as m:
+            for detection in self.last_results:
+                x, y, w, h = detection.box
+                
+                overlay = m.array.copy()
+                
+
+                mid_x = int(x + w / 2)
+                mid_y = int(y + h / 2)
+                
+                
+                cv2.circle(m.array, (mid_x,mid_y), 5, (255, 0, 0), -1)  # Dessiner un cercle au centre de la boîte
+                cv2.line(m.array, (center_x, center_y), (mid_x,mid_y), (0, 0, 255), 2)  # Ligne de trajectoire (rouge)
+                
+                
+
+
+
 
 class Detection:
     def __init__(self, coords, category, conf, metadata, imx500, picam2):

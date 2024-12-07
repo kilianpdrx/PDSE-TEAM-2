@@ -29,14 +29,23 @@ try:
         frame_start_time = time.time()
 
         # Récupérer les détections
+        request = camera.picam2.capture_request()
         detections = camera.get_detections()
         labels = camera.get_labels()
 
         for detection in detections:
             label = labels[int(detection.category)]
             confidence = detection.conf
-            if label == "person" and confidence > 0.4:
-                print(f"Person detected with {confidence:.2f} confidence!")
+            # if label == "person" and confidence > 0.4:
+            #     print(f"Person detected with {confidence:.2f} confidence!")
+
+
+
+        camera.maxi_test(request)
+        request.release()
+
+
+
 
         frame_processing_time = time.time() - frame_start_time
         total_processing_time += frame_processing_time
@@ -45,9 +54,15 @@ try:
         # Petite pause pour éviter de surcharger le système
         time.sleep(0.001)
 
+
+
+
 except KeyboardInterrupt:
     # Arrêter le programme proprement avec Ctrl+C
     print("\nInterruption reçue, arrêt du programme...")
+
+
+
 
 finally:
     # Arrêter la caméra et libérer les ressources
