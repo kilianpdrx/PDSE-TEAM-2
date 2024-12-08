@@ -223,7 +223,9 @@ class IMX500Detector:
                     continue
 
                 x, y, w, h = detection.box
-                cropped = self.act_frame[y:y+h, x:x+w]
+                cropped_person = self.act_frame[y:y+h, x:x+w]
+                features = extractor(cropped_person)
+            return features, cropped_person
 
 
 

@@ -1,7 +1,7 @@
 from ai_camera import *
 import time
 import cv2
-from torchreid.utils import FeatureExtractor
+from feature_extractor import FeatureExtractor
 
 
 # model = "/usr/share/imx500-models/imx500_network_nanodet_plus_416x416.rpk"
@@ -34,8 +34,6 @@ frame_count = 0
 total_processing_time = 0.0
 start_time = time.time()
 frame_jump = 1  # Ignorer certaines frames pour optimiser
-
-extractor = 0
 
 
 
