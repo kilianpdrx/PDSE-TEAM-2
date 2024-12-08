@@ -1,7 +1,8 @@
 from ai_camera import *
 import time
 import cv2
-from feature_extractor import FeatureExtractor
+# from feature_extractor import FeatureExtractor
+from FE_modif import FeatureExtractor2
 
 
 # model = "/usr/share/imx500-models/imx500_network_nanodet_plus_416x416.rpk"
@@ -11,7 +12,7 @@ model = "/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320
 
 
 camera = IMX500Detector(model)
-extractor = FeatureExtractor(
+extractor = FeatureExtractor2(
         model_name='osnet_x1_0',
         model_path='osnet_x1_0_imagenet.pth',
         device='cpu'
