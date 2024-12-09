@@ -2,6 +2,7 @@ from flask import Flask, Response
 import time
 from ai_camera import IMX500Detector
 import cv2
+import uuid
 
 
 # Initialisation du modèle et de la caméra
@@ -24,17 +25,32 @@ def video_feed():
                 # Récupération des détections
                 detections = camera.get_detections()
                 labels = camera.get_labels()
-                
+                frame = camera.picam2.capture_array()  # Capture la frame depuis le flux de la caméra
                 for detection in detections:
-                    if int(detection.category) > len(labels) - 1:
-                        continue
+                    if int(detection.category) > len(labels)-1:
+                            continue
+                    
                     label = labels[int(detection.category)]
-                    confidence = detection.conf
-                    # if label == "person" and confidence > 0.4:
-                    #     print(f"Person detected with {confidence:.2f} confidence!")
+                    if label != "person": #we are only interested in people
+                        continue
+
+                    x, y, w, h = detection.box
+                    cropped_person = frame[y:y+h, x:x+w]
+
+                    image_id = uuid.uuid4().hex
+
+                    # Encodage de l'image découpée
+                    _, buffer = cv2.imencode('.jpg', cropped_person)
+
+                    # Envoi de l'image avec un identifiant unique
+                    yield (b'--frame\r\n'
+                        b'Content-Type: image/jpeg\r\n' +
+                        f'X-Image-ID: {image_id}\r\n\r\n'.encode('utf-8') +
+                        buffer.tobytes() + b'\r\n')
+                                    
 
                 # # Capture de la frame pour la diffusion
-                frame = camera.picam2.capture_array()  # Capture la frame depuis le flux de la caméra
+                
                 _, buffer = cv2.imencode('.jpg', frame)  # Compression en format JPEG
 
                 yield (b'--frame\r\n'
