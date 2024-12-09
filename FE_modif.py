@@ -64,7 +64,7 @@ class FeatureExtractor2(object):
         pixel_std=[0.229, 0.224, 0.225],
         pixel_norm=True,
         device='cuda',
-        verbose=True
+        verbose=False
     ):
         # Build model
         model = build_model(

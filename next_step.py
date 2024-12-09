@@ -12,11 +12,7 @@ model = "/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320
 
 
 camera = IMX500Detector(model)
-extractor = FeatureExtractor2(
-        model_name='osnet_x1_0',
-        model_path='osnet_x1_0_imagenet.pth',
-        device='cpu'
-    )
+
 
 # Start the detector with preview window
 camera.start(show_preview=True)
@@ -42,7 +38,7 @@ try:
     # Boucle principale
     while True:
         frame_start_time = time.time()
-        frame = camera.picam2.capture_array()
+
 
         # Récupérer les détections
         detections = camera.get_detections()
@@ -58,12 +54,12 @@ try:
 
 
 
-       
+        # frame = camera.picam2.capture_array()
 
 
-        if not calibrated:
-            # Étape de calibration
-            camera.calibrate(detections, extractor)
+        # if not calibrated:
+        #     # Étape de calibration
+        #     camera.calibrate(detections, extractor)
             # target_features, target_image = camera.calibrate(detections, extractor, frame)
         #     if target_features is not None:
         #         print(f"Calibration : {index_frame/min_number_features * 100:.2f}%")
@@ -80,9 +76,9 @@ try:
         #         # cv2.destroyWindow("Personne calibrée")
                 
         
-
-        cv2.imshow("Frame", frame)
-        cv2.waitKey(1)
+        
+        # cv2.imshow("Frame", frame)
+        # cv2.waitKey(1)
 
 
 

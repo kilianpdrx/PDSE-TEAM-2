@@ -14,6 +14,9 @@ from picamera2.devices.imx500 import (NetworkIntrinsics,
                                       postprocess_nanodet_detection)
 
 
+import time
+from FE_modif import FeatureExtractor2
+
 class Detection:
     def __init__(self, coords, category, conf, metadata):
         """Create a Detection object, recording the bounding box, category and confidence."""
@@ -77,6 +80,12 @@ def draw_detections(jobs):
         last_detections = detections
         with MappedArray(request, 'main') as m:
             for detection in detections:
+                if int(detection.category) > len(labels)-1:
+                    continue
+                label = labels[int(detection.category)]
+                if label != "person": #we are only interested in people
+                    continue
+                
                 x, y, w, h = detection.box
                 label = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
 
@@ -105,6 +114,8 @@ def draw_detections(jobs):
                 # Draw detection box
                 cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0), thickness=2)
 
+            calibrate(detections, extractor, m.array)
+
             if intrinsics.preserve_aspect_ratio:
                 b_x, b_y, b_w, b_h = imx500.get_roi_scaled(request)
                 color = (255, 0, 0)  # red
@@ -120,7 +131,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=str, help="Path of the model",
                         default="/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk")
-    parser.add_argument("--fps", type=int, help="Frames per second")
+    parser.add_argument("--fps", default=60, type=int, help="Frames per second")
     parser.add_argument("--bbox-normalization", action=argparse.BooleanOptionalAction, help="Normalize bbox")
     parser.add_argument("--threshold", type=float, default=0.55, help="Detection threshold")
     parser.add_argument("--iou", type=float, default=0.65, help="Set iou threshold")
@@ -135,6 +146,47 @@ def get_args():
     parser.add_argument("--print-intrinsics", action="store_true",
                         help="Print JSON network_intrinsics then exit")
     return parser.parse_args()
+
+
+
+
+def calibrate(detections, extractor, frame):
+    """Calibrer en extrayant les caractéristiques d'une personne."""
+
+    
+    if len(detections) != 1:  # Assurez-vous qu'une seule personne est devant la caméra
+        return None, None
+
+
+    labels = get_labels()
+
+
+    if frame is not None:
+        for detection in detections:
+            if int(detection.category) > len(labels)-1:
+                    continue
+            
+            label = labels[int(detection.category)]
+            if label != "person": #we are only interested in people
+                continue
+
+            x, y, w, h = detection.box
+            cropped_person = frame[y:y+h, x:x+w]
+            if cropped_person.size != 0:
+                features = extractor(cropped_person)
+            else:
+                return None, None
+        return features, cropped_person
+
+
+extractor = FeatureExtractor2(
+                model_name='osnet_x0_25',
+                model_path='osnet_x0_25_imagenet.pth',
+                device='cpu'
+            )
+
+
+
 
 
 if __name__ == "__main__":
@@ -183,12 +235,55 @@ if __name__ == "__main__":
     thread = threading.Thread(target=draw_detections, args=(jobs,))
     thread.start()
 
-    while True:
-        # The request gets released by handle_results
-        request = picam2.capture_request()
-        metadata = request.get_metadata()
-        if metadata:
-            async_result = pool.apply_async(parse_detections, (metadata,))
-            jobs.put((request, async_result))
-        else:
-            request.release()
+    index_frame = 0 # on est obligés d'en mettre 2 parce qu'on saute des frames
+    frame_count = 0
+    total_processing_time = 0.0
+    start_time = time.time()
+    frame_jump = 100  # Ignorer certaines frames pour optimiser
+
+    try:
+        while True:
+            if frame_count % frame_jump != 0:
+                frame_count += 1
+                continue
+
+
+            frame_start_time = time.time()
+            # The request gets released by handle_results
+            request = picam2.capture_request()
+            metadata = request.get_metadata()
+            if metadata:
+                async_result = pool.apply_async(parse_detections, (metadata,))
+                jobs.put((request, async_result))
+            else:
+                request.release()
+            
+
+            frame_processing_time = time.time() - frame_start_time
+            print(f"FPS: {1 / frame_processing_time:.2f}")
+            total_processing_time += frame_processing_time
+            frame_count += 1
+
+    except KeyboardInterrupt:
+        # Arrêter le programme proprement avec Ctrl+C
+        print("\nInterruption reçue, arrêt du programme...")
+
+
+
+
+    finally:
+        # Arrêter la caméra et libérer les ressources
+        picam2.stop()
+        end_time = time.time()
+        total_time = end_time - start_time
+        average_processing_time = total_processing_time / frame_count if frame_count > 0 else -1
+
+        print(" ")
+        print(f"Temps total de traitement de la vidéo : {total_time:.2f} secondes")
+        print(f"Temps moyen de traitement par image : {average_processing_time:.4f} secondes")
+        print(f"FPS moyen : {1 / average_processing_time:.2f} FPS")
+
+
+
+
+
