@@ -8,9 +8,6 @@ while True:
     if not ret:
         break
     
-    
-    
-    
     cv2.imshow("Live Stream", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
