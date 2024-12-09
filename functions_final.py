@@ -2,7 +2,7 @@ import cv2
 import time
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
-from torchreid.utils import FeatureExtractor
+
 import torch
 
 
