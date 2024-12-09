@@ -49,6 +49,7 @@ def video_feed():
         finally:
             camera.stop()
             print("Arrêt de la caméra.")
+            exit()
 
     return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
