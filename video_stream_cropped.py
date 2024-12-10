@@ -3,6 +3,9 @@ import time
 from ai_camera import IMX500Detector
 import cv2
 import uuid
+from queue import Queue
+import threading
+import json
 
 
 # Initialisation du modèle et de la caméra
@@ -20,10 +23,51 @@ app = Flask(__name__)
 # Démarrage de la caméra avec aperçu activé
 camera.start(show_preview=True)
 
+frame_queue = Queue(maxsize=10)
 
 # Associe une URL (/video_feed) à une fonction Python
 # Quand un utilisateur accède à http://<ip>:5000/video_feed, la fonction video_feed est exécutée.
 
+
+# Thread pour capturer les frames et leurs données
+def capture_frames_and_data():
+    while True:
+        if not frame_queue.full():
+            # Capture d'une image
+            frame = camera.picam2.capture_array()
+            
+            # Détection des objets
+            detections = camera.get_detections()
+            labels = camera.get_labels()
+
+            # Rassembler les données de détecltion
+            detection_data = {
+                "detections": []
+            }
+
+
+            for detection in detections:
+                if int(detection.category) > len(labels) - 1:
+                    continue
+                
+                label = labels[int(detection.category)]
+                if label != "person":  # Filtre uniquement pour les personnes
+                    continue
+                
+                x, y, w, h = detection.box
+                detection_data['detections'].append({
+                    "label": labels[int(detection.category)],
+                    "bbox": [x, y, w, h]
+                })
+        
+         
+
+
+            # print(detection_data)   
+            # Mettre la frame et ses données dans la queue
+            frame_queue.put((frame, detection_data))
+        
+        time.sleep(0.001)  # Capture ~33 FPS
 
 # Route pour le flux vidéo complet
 @app.route('/full_feed')
@@ -31,7 +75,7 @@ def video_feed():
     def generate_full_frames():
         try:
             while True:
-                frame = camera.picam2.capture_array()  # Capture la frame complète
+                frame, data = frame_queue.get()
 
                 # Encodage de l'image complète
                 _, buffer = cv2.imencode('.jpg', frame)
@@ -57,7 +101,8 @@ def cropped_feed():
     def generate_cropped_frames():
         try:
             while True:
-                frame = camera.picam2.capture_array()  # Capture de la frame complète
+                frame, data = frame_queue.get()
+
                 detections = camera.get_detections()
                 labels = camera.get_labels()
 
@@ -115,5 +160,25 @@ def cropped_feed():
     return Response(generate_cropped_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+
+
+
+# faire ce data la en flot continu 
+# si possible le synchroniser avec le flux video
+@app.route('/data')
+def send_data():
+    def generate_data():
+        while True:
+            if not frame_queue.empty():
+                _, data = frame_queue.get()
+                yield f"data: {json.dumps(data)}\n\n"
+            time.sleep(0.03)  # Correspond au taux de frame (33 FPS)
+
+    return Response(generate_data(), content_type='text/event-stream')
+
+
 if __name__ == "__main__":
+
+    threading.Thread(target=capture_frames_and_data, daemon=True).start()
+
     app.run(host='0.0.0.0', port=5000)
