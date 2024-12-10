@@ -68,7 +68,7 @@ class IMX500Detector:
         if self.intrinsics.preserve_aspect_ratio:
             self.imx500.set_auto_aspect_ratio()
             
-        self.picam2.pre_callback = self._get_before
+        self.picam2.pre_callback = self._vide
     
 
 
@@ -265,9 +265,9 @@ class IMX500Detector:
                 
                 cv2.circle(m.array, (mid_x,mid_y), 5, BLUE, -1)  # Dessiner un cercle au centre de la boîte
                 cv2.line(m.array, (center_x, center_y), (mid_x,mid_y), RED, 2)  # Ligne de trajectoire (rouge)
-      
-
-
+    
+    def _vide(self, request, stream="main"):
+        pass
 
     def calibrate(self, detections, extractor):
         """Calibrer en extrayant les caractéristiques d'une personne."""
