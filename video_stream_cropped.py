@@ -13,14 +13,14 @@ model = "/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320
 camera = IMX500Detector(model)
 # Démarrage de la caméra avec aperçu activé
 camera.start(show_preview=True)
-time.sleep(1)  # Laisser le temps à la caméra de démarrer
+time.sleep(2)  # Laisser le temps à la caméra de démarrer
 
 center_x=320
 center_y=240
 w=640
 h=480
 
-DELAY = 0.001
+DELAY = 0.03
 
 # Configuration Flask
 app = Flask(__name__)
@@ -194,7 +194,47 @@ def cropped_feed():
     return Response(generate_cropped_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+@app.route('/fusion')
+def fusion():
+    def generate():
+        try:
+            while True:
+                if not frame_queue.empty():
+                    cropped_frames, extra_data = frame_queue.get()  # Récupérer frame et valeur supplémentaire
 
+                    for cropped in cropped_frames:
+                        # Générer un identifiant unique
+                        image_id = uuid.uuid4().hex
+
+
+                        # Récupérer la valeur spécifique à envoyer
+                        detections = extra_data.get("detections", [])
+                        for detection in detections:
+                            bbox = detection.get("bbox", [])
+                            x, y, w, h = bbox
+                            print(x, y, w, h)
+                            val_send = x+w/2 - center_x
+                            print(val_send)
+
+                        # Ajouter la valeur en tant qu'en-tête personnalisé
+                        yield (b'--frame\r\n'
+                               b'Content-Type: image/jpeg\r\n' +
+                               f'X-Image-ID: {image_id}\r\n'.encode('utf-8') +
+                               f'X-Extra-Value: {val_send}\r\n'.encode('utf-8') +
+                               b'\r\n' +
+                               cropped + b'\r\n')
+                        
+                time.sleep(DELAY)
+        except GeneratorExit:
+            print("Client déconnecté.")
+        except Exception as e:
+            print(f"Erreur: {e}")
+        finally:
+            camera.stop()
+            print("Arrêt de la caméra.")
+            exit()
+
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 
