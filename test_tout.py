@@ -16,6 +16,7 @@ center_y = 240
 sim_threshold = 0.75
 IDED_PERSON = 1
 BAD_PERSON = -1
+DELAY = 0.01
 
 
 
@@ -112,6 +113,21 @@ target_features = None  # Caractéristiques de la personne calibrée
 list_target_features = []  # Liste des caractéristiques de la personne calibrée
 min_number_features = 30  # Nombre minimal de features pour la calibration
 calibrated = False  # Statut de calibration
+
+
+
+POST_URL = "http://10.11.6.148:5000/update_data"
+
+def send_data_to_server(data):
+    try:
+        response = requests.post(POST_URL, json=data)
+        if response.status_code == 200:
+            print("Données envoyées avec succès.")
+        else:
+            print(f"Erreur lors de l'envoi : {response.status_code}, {response.text}")
+    except Exception as e:
+        print(f"Erreur : {e}")
+
 
 
 # Fonctions pour chaque flux
@@ -317,13 +333,17 @@ def display_streams2():
                 else:
                     tracking = compare2(cropped_frame, extractor, list_target_features)
                     if tracking != BAD_PERSON:
+                        data_to_send = {
+                            "x_distance": x_dist,
+                        }
+                        send_data_to_server(data_to_send)
                         print(f"Distance en x : {x_dist}")
             
                 cv2.imshow("Cropped Person", cropped_frame)
             else:
                 print("Image recadrée non disponible.")    
 
-        time.sleep(0.05)
+        time.sleep(DELAY)
         # Fermer les fenêtres si 'q' est pressé
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
