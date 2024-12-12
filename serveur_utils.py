@@ -58,11 +58,10 @@ def calculate_distance(human_size, height_box):
 
 
 class Serveur:
-    def __init__(self):
+    def __init__(self, camera):
         self.app = Flask(__name__)
         
-        self.camera = IMX500Detector(model)
-        self.camera.start()
+        self.camera = camera
         
         self.arduino = serial.Serial('/dev/ttyACM0', 9600)
         

@@ -19,7 +19,7 @@ WHITE = (255, 255, 255)
 
 
 class IMX500Detector:
-    def __init__(self, model_path="/usr/share/imx500-models/imx500_network_yolov8n_pp.rpk"):
+    def __init__(self, model_path="/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk"):
         self.last_detections = []
         self.last_results = None
         
