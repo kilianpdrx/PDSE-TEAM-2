@@ -134,31 +134,6 @@ def capture_frames_and_data():
         
         time.sleep(DELAY)  # Capture ~33 FPS
 
-# Route pour le flux vidéo complet
-@app.route('/full_feed')
-def video_feed():
-    def generate_full_frames():
-        try:
-            while True:
-                frame = camera.picam2.capture_array()
-
-                # Encodage de l'image complète
-                _, buffer = cv2.imencode('.jpg', frame)
-
-                # Envoi de l'image
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
-
-                time.sleep(DELAY)  # Petite pause pour réduire la charge
-
-        except GeneratorExit:
-            print("Client déconnecté (full feed).")
-        finally:
-            camera.stop()
-            print("Arrêt de la caméra (full feed).")
-            exit()
-
-    return Response(generate_full_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 # @app.route('/cropped_feed')
@@ -223,6 +198,33 @@ def video_feed():
 #             exit()
 
 #     return Response(generate_cropped_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+# Route pour le flux vidéo complet
+@app.route('/full_feed')
+def video_feed():
+    def generate_full_frames():
+        try:
+            while True:
+                frame = camera.picam2.capture_array()
+
+                # Encodage de l'image complète
+                _, buffer = cv2.imencode('.jpg', frame)
+
+                # Envoi de l'image
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+
+                time.sleep(DELAY)  # Petite pause pour réduire la charge
+
+        except GeneratorExit:
+            print("Client déconnecté (full feed).")
+        finally:
+            camera.stop()
+            print("Arrêt de la caméra (full feed).")
+            exit()
+
+    return Response(generate_full_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @app.route('/cropped_feed')

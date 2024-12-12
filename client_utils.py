@@ -1,153 +1,286 @@
 import cv2
 import time
-from ultralytics import YOLO
-from ultralytics.utils.plotting import Annotator, colors
-
+import requests
+import numpy as np
+import threading
+import queue
+import json
 import torch
 
 
-# Fonction pour obtenir les paramètres de la vidéo
-def get_video_params(video_path):
-    cap = cv2.VideoCapture(video_path)
-    w, h, fps = (int(cap.get(x)) for x in (cv2.CAP_PROP_FRAME_WIDTH, cv2.CAP_PROP_FRAME_HEIGHT, cv2.CAP_PROP_FPS))
-    return cap, w, h, fps
-
-# Fonction pour afficher et enregistrer les annotations
-def annotate_frame(im0, annotations, annotator, center_x, center_y, w, h):
-    for xyxy, mask, color, label, txt_color in annotations:
-        mid_x = int((xyxy[0] + xyxy[2]) / 2)
-        mid_y = int((xyxy[1] + xyxy[3]) / 2)
-        
-        
-        cv2.circle(im0, (mid_x,mid_y), 5, (255, 0, 0), -1)  # Dessiner un cercle au centre de la boîte
-        cv2.line(im0, (center_x, center_y), (mid_x,mid_y), (0, 0, 255), 2)  # Ligne de trajectoire (rouge)
-        cv2.rectangle(im0, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (0, 255, 0), 2)
-        annotator.seg_bbox(mask=mask, mask_color=color, label=label, txt_color=txt_color)
-        
-
-    # Lignes de trajectoire et de référence
-    cv2.line(im0, (center_x, 0), (center_x, h), (0, 255, 0), 1)  # Ligne verticale (vert)
-    cv2.line(im0, (0, center_y), (w, center_y), (0, 255, 0), 1)  # Ligne horizontale (vert)
-    return im0
-
-
-# Fonction pour afficher et calculer les FPS
-def display_fps(im0, frame_processing_time, frame_jump):
-    
-    fps_display = 1 / frame_processing_time if frame_processing_time > 0 else -1
-    fps_display = frame_jump * fps_display  # Mettre à jour le FPS en fonction du saut de frame
-    cv2.putText(im0, f"FPS: {fps_display:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
-    return im0
-
-
-def calibrate(results, extractor, im0):
-    """Calibrer en extrayant les caractéristiques d'une personne."""
-    if results[0].boxes is None:
-        return None, None
-
-    boxes = results[0].boxes.xyxy.cpu().numpy()  # Coordonnées des boîtes
-    if len(boxes) != 1:  # Assurez-vous qu'une seule personne est devant la caméra
-        return None, None
-
-    # Extraire les caractéristiques de l'image de la personne
-    x1, y1, x2, y2 = map(int, boxes[0])
-    cropped_person = im0[y1:y2, x1:x2]
-    features = extractor(cropped_person)
-    return features, cropped_person
+from FE_modif import FeatureExtractor2
 
 
 
+IDED_PERSON = 1
+BAD_PERSON = -1
 
-def process_total(frame, results, extractor, target_features, annotator, center_x, threshold=0.8):
+DO_CALIBRATION = True
+target_features = None  # Caractéristiques de la personne calibrée
+list_target_features = []  # Liste des caractéristiques de la personne calibrée
+min_number_features = 30  # Nombre minimal de features pour la calibration
+calibrated = False  # Statut de calibration
+DELAY = 0.01
+SIM_THRESHOLD = 0.7
+
+
+def calibrate(extractor, cropped_person):
+    # Détecter les caractéristiques de la personne
+    target_features = extractor(cropped_person)
+    return target_features
+
+
+def compare2(frame, extractor, list_target_features):
     """Comparer les caractéristiques des personnes détectées avec celles de la personne calibrée."""
     
+    features = extractor(frame)
+    mean = 0
+
     
-    for result in results: 
-
-        if result.boxes.id is None or result.masks is None:
-            return []
-
-        masks = result.masks.xy
-        track_ids = result.boxes.id.int().cpu().tolist()
-        classes = result.boxes.cls.int().cpu().tolist()
-        confidences = result.boxes.conf.cpu().tolist()
-        boxes = result.boxes.cpu().numpy()
-        xyxys = boxes.xyxy
+    # si la moyenne des similarités est supérieure au seuil, on considère que la personne est ciblée
+    for target_features in list_target_features:
+        if target_features is not None:
+            # Calcul de la similarité entre les caractéristiques extraites et celles de la cible
+            similarity = torch.nn.functional.cosine_similarity(features, target_features).item()
+            mean += similarity
     
+    total_val = mean/len(list_target_features)
 
-        annotations = []
+    if total_val > SIM_THRESHOLD:
+        print("Personne ciblée")
+        track_id = IDED_PERSON
+    else:
+        print("Personne non ciblée")
+        track_id = BAD_PERSON
 
-        for mask, track_id, cls, conf, box_xyxy in zip(masks, track_ids, classes, confidences, xyxys):
-            if cls == 0:
-                x1, y1, x2, y2 = map(int, box_xyxy)
-                cropped_person = frame[y1:y2, x1:x2]
-                features = extractor(cropped_person)
-
-                # Calcul de la similarité entre les caractéristiques extraites et celles de la cible
-                similarity = torch.nn.functional.cosine_similarity(features, target_features).item()
-
-                if similarity > threshold:  # Seuillage de la similarité
-                    track_id = 1  # ID de la personne cible
-                else:
-                    track_id = -1  # Non ciblé
-
-                # Annoter la frame
-                mid_x = int((box_xyxy[0] + box_xyxy[2]) / 2)
-                x_distance = mid_x - center_x
-                color = colors(track_id, True)
-                label = f"ID: {track_id}, Sim: {similarity:.2f}, x_dist: {x_distance:.2f}"
-                txt_color = annotator.get_txt_color(color)
-                
-                annotations.append((box_xyxy, mask, color, label, txt_color))
-
-    return annotations
+    return track_id
 
 
-def process_long_calib(frame, results, extractor, target_features, annotator, center_x, threshold=0.8):
-    """Comparer les caractéristiques des personnes détectées avec celles de la personne calibrée."""
+
+
+
+class Client:
+    def __init__(self):
+        self.urls = {
+            "cropped": "http://10.11.6.148:5000/cropped_feed",
+            "full": "http://10.11.6.148:5000/full_feed",
+            "data": "http://10.11.6.148:5000/data",
+            "fusion": "http://10.11.6.148:5000/fusion"
+        }
+    
+        self.full_frame_queue = queue.Queue(maxsize=1)
+        self.cropped_frame_queue = queue.Queue(maxsize=1)
+        self.data_queue = queue.Queue(maxsize=1)
+        self.final_queue = queue.Queue(maxsize=1)
+
+        
+        self.list_target_features = []
+        
+        
+        
+        self.extractor = FeatureExtractor2(
+            model_name='osnet_x0_25',
+            model_path='osnet_x0_25_imagenet.pth',
+            device='cpu'
+        )
+    
+        self.POST_URL = "http://10.11.6.148:5000/update_data"
+        
+        self.threads = [
+            threading.Thread(target=self.fetch_full_feed, daemon=True),
+            threading.Thread(target=self.fetch_cropped_feed, daemon=True),
+            threading.Thread(target=self.fetch_data_feed, daemon=True),
+            threading.Thread(target=self.fetch_final_flux, daemon=True)
+        ]
+        
+
     
     
-    for result in results: 
-
-        if result.boxes.id is None or result.masks is None:
-            return []
-
-        masks = result.masks.xy
-        track_ids = result.boxes.id.int().cpu().tolist()
-        classes = result.boxes.cls.int().cpu().tolist()
-        confidences = result.boxes.conf.cpu().tolist()
-        boxes = result.boxes.cpu().numpy()
-        xyxys = boxes.xyxy
     
+    
+    def send_data_to_server(self,data):
+        try:
+            response = requests.post(self.POST_URL, json=data)
+            if response.status_code == 200:
+                # print("Données envoyées avec succès.")
+                pass
+            else:
+                print(f"Erreur lors de l'envoi : {response.status_code}, {response.text}")
+        except Exception as e:
+            print(f"Erreur : {e}")
+    
+    
+    def fetch_full_feed(self):
+        """Thread pour le flux vidéo complet."""
+        stream = requests.get(self.urls["full"], stream=True)
+        if stream.status_code != 200:
+            print("Impossible de se connecter au flux full_feed.")
+            return
 
-        annotations = []
+        bytes_data = b""
+        for chunk in stream.iter_content(chunk_size=1024):
+            bytes_data += chunk
+            a = bytes_data.find(b'\xff\xd8')
+            b = bytes_data.find(b'\xff\xd9')
 
-        for mask, track_id, cls, conf, box_xyxy in zip(masks, track_ids, classes, confidences, xyxys):
-            if cls == 0:
-                x1, y1, x2, y2 = map(int, box_xyxy)
-                cropped_person = frame[y1:y2, x1:x2]
-                features = extractor(cropped_person)
+            if a != -1 and b != -1:
+                jpeg_data = bytes_data[a:b+2]
+                bytes_data = bytes_data[b+2:]
+
+                # Convertir en numpy array pour OpenCV
+                nparr = np.frombuffer(jpeg_data, np.uint8)
+                frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                self.full_frame_queue.put(frame)  # Ajouter à la queue
 
 
-                for target_features in target_features:
-                    if target_features is not None:
-                        # Calcul de la similarité entre les caractéristiques extraites et celles de la cible
-                        similarity = torch.nn.functional.cosine_similarity(features, target_features).item()
+    def fetch_cropped_feed(self):
+        """Thread pour le flux des images recadrées."""
+        stream = requests.get(self.urls["cropped"], stream=True)
+        if stream.status_code != 200:
+            print("Impossible de se connecter au flux cropped_feed.")
+            return
 
-                        if similarity > threshold:  # Seuillage de la similarité
-                            track_id = 1  # ID de la personne cible
+        bytes_data = b""
+        for chunk in stream.iter_content(chunk_size=1024):
+            bytes_data += chunk
+            a = bytes_data.find(b'\xff\xd8')
+            b = bytes_data.find(b'\xff\xd9')
+
+            if a != -1 and b != -1:
+                jpeg_data = bytes_data[a:b+2]
+                bytes_data = bytes_data[b+2:]
+
+                # Convertir en numpy array pour OpenCV
+                nparr = np.frombuffer(jpeg_data, np.uint8)
+                cropped_person = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                self.cropped_frame_queue.put(cropped_person)  # Ajouter à la queue
+
+
+    def fetch_data_feed(self):
+        """Thread pour le flux JSON."""
+        stream = requests.get(self.urls["data"], stream=True)
+        if stream.status_code != 200:
+            print("Impossible de se connecter au flux data.")
+            return
+
+        for line in stream.iter_lines():
+            if line:
+                try:
+                    data = json.loads(line.decode('utf-8').replace("data: ", ""))
+                    self.data_queue.put(data)  # Ajouter à la queue
+                except json.JSONDecodeError:
+                    print("Erreur lors de la lecture du flux JSON.")
+
+
+    def fetch_final_flux(self):
+        stream = requests.get(self.urls["fusion"], stream=True)
+        if stream.status_code == 200:
+            print("Connexion établie avec le serveur.")
+
+            byte_buffer = b''
+            boundary = b'--frame'
+        
+            try:
+                for chunk in stream.iter_content(chunk_size=1024):
+                    byte_buffer += chunk
+
+                    while boundary in byte_buffer:
+                        # Trouver les délimitations des frames
+                        frame_start = byte_buffer.find(boundary)
+                        frame_end = byte_buffer.find(boundary, frame_start + len(boundary))
+
+                        if frame_end == -1:
                             break
-                        else:
-                            track_id = -1  # Non ciblé
 
-                # Annoter la frame
-                mid_x = int((box_xyxy[0] + box_xyxy[2]) / 2)
-                x_distance = mid_x - center_x
-                color = colors(track_id, True)
-                label = f"ID: {track_id}, Sim: {similarity:.2f}, x_dist: {x_distance:.2f}"
-                txt_color = annotator.get_txt_color(color)
+                        # Extraire une seule frame avec ses en-têtes
+                        frame = byte_buffer[frame_start:frame_end]
+                        byte_buffer = byte_buffer[frame_end:]
+
+                        # Séparer les en-têtes du contenu de l'image
+                        header_end = frame.find(b'\r\n\r\n')
+                        headers = frame[:header_end].decode('utf-8')
+                        image_data = frame[header_end + 4:]
+
+                        # Lire les en-têtes personnalisés
+                        height_box = None
+                        dist_x = None
+                        for line in headers.split('\r\n'):
+                            if line.startswith('X-bbox:'):
+                                height_box = line.split(':', 1)[1].strip()
+                            elif line.startswith('X-dist_x:'):
+                                dist_x = line.split(':', 1)[1].strip()
+
+                        # Décoder l'image
+                        image_array = np.frombuffer(image_data, dtype=np.uint8)
+                        frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                        self.final_queue.put((frame, dist_x, height_box))
+                        
+                        # if frame is not None:
+                        #     # Afficher l'image et les métadonnées
+                        #     print(f"Image ID: {image_id}, Extra Value: {extra_value}")
+                        #     cv2.imshow('Frame', frame)
+
+                        #     # Arrêter la boucle si 'q' est pressé
+                        #     if cv2.waitKey(1) & 0xFF == ord('q'):
+                        #         break
+            except Exception as e:
+                print(f"Erreur lors du traitement : {e}")
+            finally:
+                cv2.destroyAllWindows()
+        
+        else:
+            print(f"Erreur : impossible de se connecter au serveur. Code {stream.status_code}")
+
+
+    def display_streams2(self):
+        global calibrated
+        """Affiche les deux flux vidéo et les données JSON dans le terminal."""
+        while True:
+            cropped_frame = None
+            data = None
+            
+            if not self.final_queue.empty():
+                cropped_frame, x_dist, height_box = self.final_queue.get()
+
+            
+            # Calibration
+            if DO_CALIBRATION:
+                if cropped_frame is not None:
+                    if not calibrated:
+                        target_features = calibrate(self.extractor, cropped_frame)
+                        if target_features is not None:
+                            self.list_target_features.append(target_features)
+                            print(f"Calibration : {len(self.list_target_features) / min_number_features * 100:.2f}%")
+
+                        if len(self.list_target_features) >= min_number_features:
+                            print("Calibration terminée.")
+                            calibrated = True
+                    else:
+                        tracking = compare2(cropped_frame, self.extractor, self.list_target_features)
+                        data_to_send = {
+                            "x_distance": x_dist,
+                            "height_box": height_box, 
+                            "tracking": tracking
+                        }
+                        self.send_data_to_server(data_to_send)
+                        print(f"Distance en x : {x_dist}")
                 
-                annotations.append((box_xyxy, mask, color, label, txt_color))
+                    cv2.imshow("Cropped Person", cropped_frame)
+                # else:
+                #     print("Image recadrée non disponible.")    
 
-    return annotations
+            time.sleep(DELAY)
+            # Fermer les fenêtres si 'q' est pressé
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+        
+        cv2.destroyAllWindows()
+
+
+
+
+
+
+
+
+

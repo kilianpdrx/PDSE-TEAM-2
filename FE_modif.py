@@ -16,7 +16,7 @@ import os.path as osp
 import warnings
 import PIL
 import pickle
-import partial
+# import partial
 
 
 

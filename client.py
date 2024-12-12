@@ -11,78 +11,6 @@ from FE_modif import FeatureExtractor2
 from client_utils import *
 
 
-center_x = 320
-center_y = 240
-sim_threshold = 0.7
-IDED_PERSON = 1
-BAD_PERSON = -1
-DELAY = 0.01
-
-
-
-def calibrate(extractor, cropped_person):
-    # Détecter les caractéristiques de la personne
-    target_features = extractor(cropped_person)
-    return target_features
-
-
-def compare(frame, extractor, list_target_features, data):
-    """Comparer les caractéristiques des personnes détectées avec celles de la personne calibrée."""
-    
-    features = extractor(frame)
-    mean = 0
-    x_distance = 0
-    
-    x,y,w,h = data
-    mid_x = x + w/2
-    
-    # si la moyenne des similarités est supérieure au seuil, on considère que la personne est ciblée
-    for target_features in list_target_features:
-        if target_features is not None:
-            # Calcul de la similarité entre les caractéristiques extraites et celles de la cible
-            similarity = torch.nn.functional.cosine_similarity(features, target_features).item()
-            mean += similarity
-    
-    total_val = mean/len(list_target_features)
-
-    if total_val > sim_threshold:
-        print("Personne ciblée")
-        track_id = IDED_PERSON
-        x_distance = mid_x - center_x # la faut récupérer mid_x avec le flux data
-    else:
-        print("Personne non ciblée")
-        track_id = BAD_PERSON
-        x_distance = BAD_PERSON
-
-    return track_id, x_distance
-
-
-def compare2(frame, extractor, list_target_features):
-    """Comparer les caractéristiques des personnes détectées avec celles de la personne calibrée."""
-    
-    features = extractor(frame)
-    mean = 0
-
-    
-    # si la moyenne des similarités est supérieure au seuil, on considère que la personne est ciblée
-    for target_features in list_target_features:
-        if target_features is not None:
-            # Calcul de la similarité entre les caractéristiques extraites et celles de la cible
-            similarity = torch.nn.functional.cosine_similarity(features, target_features).item()
-            mean += similarity
-    
-    total_val = mean/len(list_target_features)
-
-    if total_val > sim_threshold:
-        print("Personne ciblée")
-        track_id = IDED_PERSON
-    else:
-        print("Personne non ciblée")
-        track_id = BAD_PERSON
-
-    return track_id
-
-
 
 extractor = FeatureExtractor2(
     model_name='osnet_x0_25',
@@ -93,7 +21,7 @@ extractor = FeatureExtractor2(
 
 
 # URL des flux
-url = {
+urls = {
     "cropped": "http://10.11.6.148:5000/cropped_feed",
     "full": "http://10.11.6.148:5000/full_feed",
     "data": "http://10.11.6.148:5000/data",
@@ -107,13 +35,23 @@ data_queue = queue.Queue(maxsize=1)
 final_queue = queue.Queue(maxsize=1)
 
 
-CHOIX_FLUX = [3] # 0: full, 1: cropped, 2: data 3: fusion
+
+
+center_x = 320
+center_y = 240
+sim_threshold = 0.7
+IDED_PERSON = 1
+BAD_PERSON = -1
+DELAY = 0.01
+
+
 DO_CALIBRATION = True
 target_features = None  # Caractéristiques de la personne calibrée
 list_target_features = []  # Liste des caractéristiques de la personne calibrée
 min_number_features = 30  # Nombre minimal de features pour la calibration
 calibrated = False  # Statut de calibration
 
+CHOIX_FLUX = [3] # 0: full, 1: cropped, 2: data 3: fusion
 
 
 POST_URL = "http://10.11.6.148:5000/update_data"
@@ -134,7 +72,7 @@ def send_data_to_server(data):
 # Fonctions pour chaque flux
 def fetch_full_feed():
     """Thread pour le flux vidéo complet."""
-    stream = requests.get(url["full"], stream=True)
+    stream = requests.get(urls["full"], stream=True)
     if stream.status_code != 200:
         print("Impossible de se connecter au flux full_feed.")
         return
@@ -156,7 +94,7 @@ def fetch_full_feed():
 
 def fetch_cropped_feed():
     """Thread pour le flux des images recadrées."""
-    stream = requests.get(url["cropped"], stream=True)
+    stream = requests.get(urls["cropped"], stream=True)
     if stream.status_code != 200:
         print("Impossible de se connecter au flux cropped_feed.")
         return
@@ -178,7 +116,7 @@ def fetch_cropped_feed():
 
 def fetch_data_feed():
     """Thread pour le flux JSON."""
-    stream = requests.get(url["data"], stream=True)
+    stream = requests.get(urls["data"], stream=True)
     if stream.status_code != 200:
         print("Impossible de se connecter au flux data.")
         return
@@ -195,7 +133,7 @@ def fetch_data_feed():
 
 
 def fetch_final_flux():
-    stream = requests.get(url["fusion"], stream=True)
+    stream = requests.get(urls["fusion"], stream=True)
     if stream.status_code == 200:
         print("Connexion établie avec le serveur.")
 
@@ -255,59 +193,6 @@ def fetch_final_flux():
 
 
 
-# Thread principal pour afficher les images et les données
-def display_streams():
-    global calibrated
-    """Affiche les deux flux vidéo et les données JSON dans le terminal."""
-    while True:
-        full_frame = None
-        cropped_frame = None
-        data = None
-        
-        # Afficher les frames complètes dans une fenêtre OpenCV
-
-            
-        
-        # Afficher les images recadrées dans une autre fenêtre OpenCV
-        if not cropped_frame_queue.empty():
-            cropped_frame = cropped_frame_queue.get()
-            # cv2.imshow("Cropped Feed", cropped_frame)
-        
-        # Calibration
-        if DO_CALIBRATION:
-            if cropped_frame is not None:
-                if not calibrated:
-                    target_features = calibrate(extractor, cropped_frame)
-                    if target_features is not None:
-                        list_target_features.append(target_features)
-                        print(f"Calibration : {len(list_target_features) / min_number_features * 100:.2f}%")
-
-                    if len(list_target_features) >= min_number_features:
-                        print("Calibration terminée.")
-                        calibrated = True
-                else:
-                    if data is not None:
-                        tracking, x_dist = compare(cropped_frame, extractor, list_target_features, bbox)
-                        if x_dist != BAD_PERSON:
-                            print(f"Distance en x : {x_dist}")
-                    else:
-                        print("Data non disponible.")
-            
-                    
-                cv2.imshow("Cropped Person", cropped_frame)
-            else:
-                print("Image recadrée non disponible.")    
-
-
-
-        time.sleep(0.05)
-        # Fermer les fenêtres si 'q' est pressé
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-    
-    cv2.destroyAllWindows()
-
-
 def display_streams2():
     global calibrated
     """Affiche les deux flux vidéo et les données JSON dans le terminal."""
@@ -332,14 +217,14 @@ def display_streams2():
                         print("Calibration terminée.")
                         calibrated = True
                 else:
-                    tracking = compare2(cropped_frame, extractor, list_target_features)
+                    tracking = compare2(cropped_frame, extractor, list_target_features, sim_threshold)
                     data_to_send = {
                         "x_distance": x_dist,
                         "height_box": height_box, 
                         "tracking": tracking
                     }
                     send_data_to_server(data_to_send)
-                    print(f"Distance en x : {x_dist}")
+                    # print(f"Distance en x : {x_dist}")
             
                 cv2.imshow("Cropped Person", cropped_frame)
             # else:
@@ -362,8 +247,12 @@ threads = [
     threading.Thread(target=fetch_final_flux, daemon=True)
 ]
 
-for t in CHOIX_FLUX:
-    threads[t].start()
 
-# Thread principal pour afficher les flux et les données
-display_streams2()
+
+if __name__ == "__main__":
+    
+    for t in CHOIX_FLUX:
+        threads[t].start()
+
+    # Thread principal pour afficher les flux et les données
+    display_streams2()
