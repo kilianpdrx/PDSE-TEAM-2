@@ -15,7 +15,7 @@ ser = serial.Serial('/dev/ttyACM0',9600,timeout = 1)
 model = "/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk"
 camera = IMX500Detector(model)
 # Démarrage de la caméra avec aperçu activé
-camera.start(show_preview=True)
+camera.start(show_preview=False)
 time.sleep(3)  # Laisser le temps à la caméra de démarrer
 
 center_x=320
@@ -316,6 +316,7 @@ def send_data():
 
 @app.route('/update_data', methods=['POST'])
 def update_data():
+    live = time.time()
     try:
         # Lire les données JSON envoyées
         data = request.json
@@ -332,6 +333,7 @@ def update_data():
             print(f"Angle calculé : {math.degrees(angle):.2f} degrés")
 
             ardu_talk(dist, angle)
+            print("Temps de réponse : ", time.time() - live)
 
         # receiver_queue.put(data)
 
