@@ -21,6 +21,8 @@ w=640
 h=480
 
 DELAY = 0.01
+HUMAN_SIZE = 1.87
+CONVERSION_FACTOR = 0.5
 
 # Configuration Flask
 app = Flask(__name__)
@@ -43,7 +45,8 @@ def calculate_angle(xdist, depth):
         raise ValueError("La profondeur ne peut pas être nulle pour éviter une division par zéro.")
     
     # Calcul de l'angle
-    angle = math.atan2(xdist, depth)
+    mdist = CONVERSION_FACTOR * xdist
+    angle = math.atan2(mdist, depth)
     return angle
 
 
@@ -288,7 +291,12 @@ def update_data():
         data = request.json
 
         # Traiter les données reçues (ajuster en fonction de votre application)
-        print(f"Données reçues : {data}")
+        # print(f"Données reçues : {data}")
+        dist = calculate_distance(HUMAN_SIZE, data['x_distance'])
+        print(f"Distance calculée : {dist:.2f} mètres")
+
+        angle = calculate_angle(data['x_distance'], dist)
+        print(f"Angle calculé : {math.degrees(angle):.2f} degrés")
 
         # Par exemple, ajouter ces données à une file pour les traiter dans le flux principal
         # receiver_queue.put(data)
