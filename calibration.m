@@ -32,7 +32,7 @@ legend("All measurements", "After thresholding", "Linear approximation")
 
 height_v = 1.7;
 depth = 0.65:0.65:6*0.65;
-measure_px_v = [480, 480, 410, 320, 270, 225].*0.9./height_v;
+measure_px_v = [480, 444, 365, 300, 263, 207]./height_v;
 
 threshold = 1.5; % the distance after which the subject is fully visible
 

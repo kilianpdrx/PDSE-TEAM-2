@@ -13,7 +13,7 @@ from functions_final import *
 
 center_x = 320
 center_y = 240
-sim_threshold = 0.75
+sim_threshold = 0.7
 IDED_PERSON = 1
 BAD_PERSON = -1
 DELAY = 0.01
@@ -122,7 +122,8 @@ def send_data_to_server(data):
     try:
         response = requests.post(POST_URL, json=data)
         if response.status_code == 200:
-            print("Données envoyées avec succès.")
+            # print("Données envoyées avec succès.")
+            pass
         else:
             print(f"Erreur lors de l'envoi : {response.status_code}, {response.text}")
     except Exception as e:
@@ -223,18 +224,18 @@ def fetch_final_flux():
                     image_data = frame[header_end + 4:]
 
                     # Lire les en-têtes personnalisés
-                    image_id = None
-                    extra_value = None
+                    height_box = None
+                    dist_x = None
                     for line in headers.split('\r\n'):
-                        if line.startswith('X-Image-ID:'):
-                            image_id = line.split(':', 1)[1].strip()
-                        elif line.startswith('X-Extra-Value:'):
-                            extra_value = line.split(':', 1)[1].strip()
+                        if line.startswith('X-bbox:'):
+                            height_box = line.split(':', 1)[1].strip()
+                        elif line.startswith('X-dist_x:'):
+                            dist_x = line.split(':', 1)[1].strip()
 
                     # Décoder l'image
                     image_array = np.frombuffer(image_data, dtype=np.uint8)
                     frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-                    final_queue.put((frame, extra_value))
+                    final_queue.put((frame, dist_x, height_box))
                     
                     # if frame is not None:
                     #     # Afficher l'image et les métadonnées
@@ -315,7 +316,7 @@ def display_streams2():
         data = None
         
         if not final_queue.empty():
-            cropped_frame, x_dist = final_queue.get()
+            cropped_frame, x_dist, height_box = final_queue.get()
 
         
         # Calibration
@@ -335,13 +336,14 @@ def display_streams2():
                     if tracking != BAD_PERSON:
                         data_to_send = {
                             "x_distance": x_dist,
+                            "height_box": height_box
                         }
                         send_data_to_server(data_to_send)
                         print(f"Distance en x : {x_dist}")
             
                 cv2.imshow("Cropped Person", cropped_frame)
-            else:
-                print("Image recadrée non disponible.")    
+            # else:
+            #     print("Image recadrée non disponible.")    
 
         time.sleep(DELAY)
         # Fermer les fenêtres si 'q' est pressé
