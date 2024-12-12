@@ -13,7 +13,7 @@ model = "/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320
 camera = IMX500Detector(model)
 # Démarrage de la caméra avec aperçu activé
 camera.start(show_preview=True)
-time.sleep(2)  # Laisser le temps à la caméra de démarrer
+time.sleep(3)  # Laisser le temps à la caméra de démarrer
 
 center_x=320
 center_y=240
@@ -22,7 +22,7 @@ h=480
 
 DELAY = 0.01
 HUMAN_SIZE = 1.87
-CONVERSION_FACTOR = 0.5
+CONVERSION_FACTOR = 0.00024
 
 # Configuration Flask
 app = Flask(__name__)
@@ -51,17 +51,17 @@ def calculate_angle(xdist, depth):
 
 
 
-def calculate_distance(human_size, pixel_value):
+def calculate_distance(human_size, height_box):
 
-    if pixel_value <= 0:
+    if height_box <= 0:
         raise ValueError("La valeur en pixels doit être strictement positive.")
     
     # fonction affine pour la conversion de pixels en mètres
-    a = 2.0  
-    b = 0.5
+    coeff = -0.02
+    ordo = 6.3
 
     # Calcul de la distance A VERIFIER
-    distance = a * (human_size / pixel_value) + b
+    distance = coeff * (height_box/human_size) + ordo
     return distance
 
 # Thread pour capturer les frames et leurs données
@@ -249,8 +249,8 @@ def fusion():
                         # Ajouter la valeur en tant qu'en-tête personnalisé
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n' +
-                               f'X-Image-ID: {image_id}\r\n'.encode('utf-8') +
-                               f'X-Extra-Value: {val_send}\r\n'.encode('utf-8') +
+                               f'X-bbox: {h}\r\n'.encode('utf-8') +
+                               f'X-dist_x: {val_send}\r\n'.encode('utf-8') +
                                b'\r\n' +
                                cropped + b'\r\n')
                         
@@ -289,21 +289,31 @@ def update_data():
     try:
         # Lire les données JSON envoyées
         data = request.json
+        if 'x_distance' in data and 'height_box' in data:
+            # print(f"Distance en pixels : {data['x_distance']}")
+            x_distance = float(data['x_distance'])  # Conversion explicite en int
+            height_box = int(data['height_box'])  # Conversion explicite en int   
 
-        # Traiter les données reçues (ajuster en fonction de votre application)
-        # print(f"Données reçues : {data}")
-        dist = calculate_distance(HUMAN_SIZE, data['x_distance'])
-        print(f"Distance calculée : {dist:.2f} mètres")
 
-        angle = calculate_angle(data['x_distance'], dist)
-        print(f"Angle calculé : {math.degrees(angle):.2f} degrés")
+            dist = calculate_distance(HUMAN_SIZE, abs(height_box))
+            print(f"Distance calculée : {dist:.2f} mètres")
 
-        # Par exemple, ajouter ces données à une file pour les traiter dans le flux principal
+            angle = calculate_angle(x_distance, dist)
+            print(f"Angle calculé : {math.degrees(angle):.2f} degrés")
+
         # receiver_queue.put(data)
 
         return jsonify({"status": "success", "message": "Données reçues avec succès."}), 200
+    
+    except ValueError:
+        # Gestion de l'erreur de conversion en entier
+        return jsonify({"status": "error", "message": "'x_distance' doit être convertible en entier"}), 400
+    
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
+        # Gestion d'autres erreurs
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+
 
 
 
