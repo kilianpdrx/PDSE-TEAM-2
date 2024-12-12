@@ -333,13 +333,13 @@ def display_streams2():
                         calibrated = True
                 else:
                     tracking = compare2(cropped_frame, extractor, list_target_features)
-                    if tracking != BAD_PERSON:
-                        data_to_send = {
-                            "x_distance": x_dist,
-                            "height_box": height_box
-                        }
-                        send_data_to_server(data_to_send)
-                        print(f"Distance en x : {x_dist}")
+                    data_to_send = {
+                        "x_distance": x_dist,
+                        "height_box": height_box, 
+                        "tracking": tracking
+                    }
+                    send_data_to_server(data_to_send)
+                    print(f"Distance en x : {x_dist}")
             
                 cv2.imshow("Cropped Person", cropped_frame)
             # else:
