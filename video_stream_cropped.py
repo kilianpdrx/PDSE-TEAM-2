@@ -1,4 +1,4 @@
-from flask import Flask, Response
+from flask import Flask, Response, request, jsonify
 import time
 from ai_camera import IMX500Detector
 import cv2
@@ -20,7 +20,7 @@ center_y=240
 w=640
 h=480
 
-DELAY = 0.03
+DELAY = 0.01
 
 # Configuration Flask
 app = Flask(__name__)
@@ -28,10 +28,38 @@ app = Flask(__name__)
 
 
 frame_queue = Queue(maxsize=10)
+receiver_queue = Queue(maxsize=10)
 
 # Associe une URL (/video_feed) à une fonction Python
 # Quand un utilisateur accède à http://<ip>:5000/video_feed, la fonction video_feed est exécutée.
 
+
+import math
+
+def calculate_angle(xdist, depth):
+
+    # Vérification des entrées
+    if depth == 0:
+        raise ValueError("La profondeur ne peut pas être nulle pour éviter une division par zéro.")
+    
+    # Calcul de l'angle
+    angle = math.atan2(xdist, depth)
+    return angle
+
+
+
+def calculate_distance(human_size, pixel_value):
+
+    if pixel_value <= 0:
+        raise ValueError("La valeur en pixels doit être strictement positive.")
+    
+    # fonction affine pour la conversion de pixels en mètres
+    a = 2.0  
+    b = 0.5
+
+    # Calcul de la distance A VERIFIER
+    distance = a * (human_size / pixel_value) + b
+    return distance
 
 # Thread pour capturer les frames et leurs données
 def capture_frames_and_data():
@@ -212,9 +240,8 @@ def fusion():
                         for detection in detections:
                             bbox = detection.get("bbox", [])
                             x, y, w, h = bbox
-                            print(x, y, w, h)
+
                             val_send = x+w/2 - center_x
-                            print(val_send)
 
                         # Ajouter la valeur en tant qu'en-tête personnalisé
                         yield (b'--frame\r\n'
@@ -251,6 +278,31 @@ def send_data():
             time.sleep(DELAY)
 
     return Response(generate_data(), content_type='text/event-stream')
+
+
+
+@app.route('/update_data', methods=['POST'])
+def update_data():
+    try:
+        # Lire les données JSON envoyées
+        data = request.json
+
+        # Traiter les données reçues (ajuster en fonction de votre application)
+        print(f"Données reçues : {data}")
+
+        # Par exemple, ajouter ces données à une file pour les traiter dans le flux principal
+        # receiver_queue.put(data)
+
+        return jsonify({"status": "success", "message": "Données reçues avec succès."}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+
+
+
+
+
 
 if __name__ == "__main__":
 

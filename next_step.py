@@ -49,6 +49,8 @@ try:
                 continue
             label = labels[int(detection.category)]
             confidence = detection.conf
+            x, y, w, h = detection.box
+            print(x,y,w,h)
             # if label == "person" and confidence > 0.4:
             #     print(f"Person detected with {confidence:.2f} confidence!")
 
@@ -93,7 +95,7 @@ try:
 
 
         frame_processing_time = time.time() - frame_start_time
-        print(f"FPS: {1 / frame_processing_time:.2f}")
+        # print(f"FPS: {1 / frame_processing_time:.2f}")
         total_processing_time += frame_processing_time
         frame_count += 1
 
