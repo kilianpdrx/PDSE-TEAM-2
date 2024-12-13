@@ -11,7 +11,9 @@ import math
 from ai_camera import IMX500Detector
 
 
-ser = serial.Serial('/dev/ttyACM0',9600,timeout = 1)
+ser = serial.Serial('/dev/ttyAMA10',9600,timeout = 1)
+# ser = serial.Serial('/dev/ttyACM0',9600,timeout = 1)
+
 
 # Initialisation du modèle et de la caméra
 model = "/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk"
@@ -27,7 +29,7 @@ h=480
 
 DELAY = 0.01
 HUMAN_SIZE = 1.87
-CONVERSION_FACTOR = 0.00024
+CONVERSION_FACTOR = 0.00024 
 
 # Configuration Flask
 app = Flask(__name__)
@@ -41,18 +43,12 @@ receiver_queue = Queue(maxsize=10)
 # Quand un utilisateur accède à http://<ip>:5000/video_feed, la fonction video_feed est exécutée.
 
 
-def ardu_talk(dist, angle):
-    """
-    Envoie des valeurs de distance et d'angle à une Arduino via une connexion série.
+def ardu_talk(prof, mdist, tracking):
 
-    Args:
-        ser (serial.Serial): Instance de la connexion série.
-        dist (float): Distance calculée en mètres.
-        angle (float): Angle calculé en radians.
-    """
     try:
         # Convertir les données en une chaîne formatée pour l'Arduino
-        message = f"{dist:.2f},{math.degrees(angle):.2f}\n"  # Format : "distance,angle\n"
+        # message = f"{dist:.2f},{math.degrees(angle):.2f}\n"  # Format : "distance,angle\n"
+        message = f"{prof:.2f},{mdist:.2f},{tracking}\n"  # Format : "distance,angle\n"
         
         # Envoyer le message sur le port série
         ser.write(message.encode('utf-8'))
@@ -66,7 +62,7 @@ def ardu_talk(dist, angle):
     except Exception as e:
         print(f"Erreur lors de l'envoi des données à l'Arduino : {e}")
 
-
+ 
 
 def calculate_angle(xdist, depth):
 
@@ -322,19 +318,22 @@ def update_data():
     try:
         # Lire les données JSON envoyées
         data = request.json
-        if 'x_distance' in data and 'height_box' in data:
+        if 'x_distance' in data and 'height_box' in data and "tracking" in data:
             # print(f"Distance en pixels : {data['x_distance']}")
             x_distance = float(data['x_distance'])  # Conversion explicite en int
-            height_box = int(data['height_box'])  # Conversion explicite en int   
+            height_box = int(data['height_box'])  # Conversion explicite en int
+            tracking = int(data['tracking'])
 
 
-            dist = calculate_distance(HUMAN_SIZE, abs(height_box))
-            print(f"Distance calculée : {dist:.2f} mètres")
+            prof = calculate_distance(HUMAN_SIZE, abs(height_box))
+            print(f"Distance calculée : {prof:.2f} mètres")
 
-            angle = calculate_angle(x_distance, dist)
-            print(f"Angle calculé : {math.degrees(angle):.2f} degrés")
+            # angle = calculate_angle(x_distance, prof)
+            # print(f"Angle calculé : {math.degrees(angle):.2f} degrés")
 
-            ardu_talk(dist, angle)
+            mdist = CONVERSION_FACTOR * x_distance
+
+            ardu_talk(prof, mdist, tracking)
             print("Temps de réponse : ", time.time() - live)
 
         # receiver_queue.put(data)
