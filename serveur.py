@@ -11,8 +11,8 @@ import math
 from ai_camera import IMX500Detector
 
 
-ser = serial.Serial('/dev/ttyAMA10',9600,timeout = 1)
-# ser = serial.Serial('/dev/ttyACM0',9600,timeout = 1)
+# ser = serial.Serial('/dev/ttyAMA10',9600,timeout = 1)
+ser = serial.Serial('/dev/ttyACM0',9600,timeout = 1)
 
 
 # Initialisation du modèle et de la caméra
