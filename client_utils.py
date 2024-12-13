@@ -61,11 +61,19 @@ def compare2(frame, extractor, list_target_features):
 
 class Client:
     def __init__(self):
+        # self.urls = {
+        #     "cropped": "http://10.11.6.148:5000/cropped_feed",
+        #     "full": "http://10.11.6.148:5000/full_feed",
+        #     "data": "http://10.11.6.148:5000/data",
+        #     "fusion": "http://10.11.6.148:5000/fusion"
+        # }
+        
+        
         self.urls = {
-            "cropped": "http://10.11.6.148:5000/cropped_feed",
-            "full": "http://10.11.6.148:5000/full_feed",
-            "data": "http://10.11.6.148:5000/data",
-            "fusion": "http://10.11.6.148:5000/fusion"
+            "cropped": "http://128.179.212.75:5000/cropped_feed",
+            "full": "http://128.179.212.75:5000/full_feed",
+            "data": "http://128.179.212.75:5000/data",
+            "fusion": "http://128.179.212.75:5000/fusion"
         }
     
         self.full_frame_queue = queue.Queue(maxsize=1)
@@ -84,7 +92,8 @@ class Client:
             device='cpu'
         )
     
-        self.POST_URL = "http://10.11.6.148:5000/update_data"
+        # self.POST_URL = "http://10.11.6.148:5000/update_data"
+        self.POST_URL = "http://128.179.212.75:5000/update_data"
         
         self.threads = [
             threading.Thread(target=self.fetch_full_feed, daemon=True),
@@ -255,6 +264,7 @@ class Client:
                         if len(self.list_target_features) >= min_number_features:
                             print("Calibration terminée.")
                             calibrated = True
+                            # time.sleep(5)
                     else:
                         tracking = compare2(cropped_frame, self.extractor, self.list_target_features)
                         data_to_send = {
@@ -263,7 +273,7 @@ class Client:
                             "tracking": tracking
                         }
                         self.send_data_to_server(data_to_send)
-                        print(f"Distance en x : {x_dist}")
+                        # print(f"Distance en x : {x_dist}")
                 
                     cv2.imshow("Cropped Person", cropped_frame)
                 # else:
