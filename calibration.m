@@ -1,11 +1,12 @@
 %% Calibration for Kilian
-
+final_x  = 200:600;
 height_k = 1.87;
 depth = 0.65:0.65:6*0.65;
-measure_px_k = [480, 480, 410, 320, 270, 225]./height_k;
+depth = [0, depth];
+measure_px_k = [480, 480, 480, 410, 320, 270, 225];
 
 threshold = 1.5; % the distance after which the subject is fully visible
-
+%%
 index_k = depth>threshold;
 depth_interest_k = depth(index_k);
 px_interest_k = measure_px_k(index_k);
@@ -17,9 +18,9 @@ plot(px_interest_k,depth_interest_k, 'r.', MarkerSize=10)
 
 
 approx_k = fit(px_interest_k', depth_interest_k', 'poly1');
-y_fit_k = feval(approx_k, px_interest_k);
+y_fit_k = feval(approx_k, final_x);
 origin_k = approx_k.p2;
-plot(px_interest_k, y_fit_k, 'm--')
+plot(final_x, y_fit_k, 'm--')
 
 xlabel("Pixels [px]");
 ylabel("Distance [m]")
@@ -32,7 +33,7 @@ legend("All measurements", "After thresholding", "Linear approximation")
 
 height_v = 1.7;
 depth = 0.65:0.65:6*0.65;
-measure_px_v = [480, 444, 365, 300, 263, 207]./height_v;
+measure_px_v = [480, 444, 365, 300, 263, 207];
 
 threshold = 1.5; % the distance after which the subject is fully visible
 
@@ -47,9 +48,9 @@ plot(px_interest_v,depth_interest_v, 'r.', MarkerSize=10)
 
 
 approx_v = fit(px_interest_v', depth_interest_v', 'poly1');
-y_fit_v = feval(approx_v, px_interest_v);
+y_fit_v = feval(approx_v, final_x);
 origin_v = approx_v.p2;
-plot(px_interest_v, y_fit_v, 'm--')
+plot(final_x, y_fit_v, 'm--')
 
 xlabel("Pixels [px]");
 ylabel("Distance [m]")
@@ -63,12 +64,14 @@ legend("All measurements", "After thresholding", "Linear approximation")
 
 figure(3)
 hold on;
-plot(px_interest_k, y_fit_k, 'm--')
-plot(px_interest_v, y_fit_v, 'g--')
+plot(final_x, y_fit_k, 'm--')
+plot(final_x, y_fit_v, 'g--')
 
 
 xlabel("Pixels [px]");
 ylabel("Distance [m]")
+xline(480)
+yline(0)
 title("Comparison linear approximations", FontSize=15)
 legend("Kilian", "Victoria")
 

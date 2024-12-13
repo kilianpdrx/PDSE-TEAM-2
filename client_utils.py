@@ -60,21 +60,18 @@ def compare2(frame, extractor, list_target_features):
 
 
 class Client:
-    def __init__(self):
-        # self.urls = {
-        #     "cropped": "http://10.11.6.148:5000/cropped_feed",
-        #     "full": "http://10.11.6.148:5000/full_feed",
-        #     "data": "http://10.11.6.148:5000/data",
-        #     "fusion": "http://10.11.6.148:5000/fusion"
-        # }
-        
+    def __init__(self, show_person=False):
+
+        self.IP = "128.179.209.209"
         
         self.urls = {
-            "cropped": "http://128.179.212.75:5000/cropped_feed",
-            "full": "http://128.179.212.75:5000/full_feed",
-            "data": "http://128.179.212.75:5000/data",
-            "fusion": "http://128.179.212.75:5000/fusion"
+            "cropped": f"http://{self.IP}:5000/cropped_feed",
+            "full": f"http://{self.IP}:5000/full_feed",
+            "data": f"http://{self.IP}:5000/data",
+            "fusion": f"http://{self.IP}:5000/fusion"
         }
+        self.POST_URL = f"http://{self.IP}:5000/update_data"
+        
     
         self.full_frame_queue = queue.Queue(maxsize=1)
         self.cropped_frame_queue = queue.Queue(maxsize=1)
@@ -84,6 +81,7 @@ class Client:
         
         self.list_target_features = []
         
+        self.show_cropped = show_person
         
         
         self.extractor = FeatureExtractor2(
@@ -92,9 +90,7 @@ class Client:
             device='cpu'
         )
     
-        # self.POST_URL = "http://10.11.6.148:5000/update_data"
-        self.POST_URL = "http://128.179.212.75:5000/update_data"
-        
+
         self.threads = [
             threading.Thread(target=self.fetch_full_feed, daemon=True),
             threading.Thread(target=self.fetch_cropped_feed, daemon=True),
@@ -102,7 +98,7 @@ class Client:
             threading.Thread(target=self.fetch_final_flux, daemon=True)
         ]
         
-
+    
     
     
     
@@ -274,8 +270,9 @@ class Client:
                         }
                         self.send_data_to_server(data_to_send)
                         # print(f"Distance en x : {x_dist}")
-                
-                    cv2.imshow("Cropped Person", cropped_frame)
+                    
+                    if self.show_cropped:
+                        cv2.imshow("Cropped Person", cropped_frame)
                 # else:
                 #     print("Image recadrée non disponible.")    
 

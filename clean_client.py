@@ -2,6 +2,7 @@
 from client_utils import *
 
 CHOIX_FLUX = [3] # 0: full, 1: cropped, 2: data 3: fusion
+show_person = False
 
 client = Client()
 
