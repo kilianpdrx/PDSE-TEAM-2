@@ -18,9 +18,9 @@ BAD_PERSON = -1
 DO_CALIBRATION = True
 target_features = None  # Caractéristiques de la personne calibrée
 list_target_features = []  # Liste des caractéristiques de la personne calibrée
-min_number_features = 30  # Nombre minimal de features pour la calibration
+min_number_features = 15  # Nombre minimal de features pour la calibration
 calibrated = False  # Statut de calibration
-DELAY = 0.01
+DELAY = 0.0001
 SIM_THRESHOLD = 0.7
 
 
@@ -60,9 +60,10 @@ def compare2(frame, extractor, list_target_features):
 
 
 class Client:
-    def __init__(self, show_person=False, wait_for_input=True):
+    def __init__(self, show_person=False, wait_for_input=True, IP_address=""):
 
-        self.IP = "128.179.209.209"
+        self.IP = IP_address
+        
         
         self.urls = {
             "cropped": f"http://{self.IP}:5000/cropped_feed",
@@ -96,7 +97,7 @@ class Client:
             threading.Thread(target=self.fetch_full_feed, daemon=True),
             threading.Thread(target=self.fetch_cropped_feed, daemon=True),
             threading.Thread(target=self.fetch_data_feed, daemon=True),
-            threading.Thread(target=self.fetch_final_flux, daemon=True)
+            threading.Thread(target=self.fetch_final_flux, daemon=True),
         ]
         
     
@@ -237,6 +238,7 @@ class Client:
         else:
             print(f"Erreur : impossible de se connecter au serveur. Code {stream.status_code}")
 
+    
 
     def display_streams2(self):
         global calibrated
@@ -263,8 +265,7 @@ class Client:
                             calibrated = True
                             
                             if self.wait_for_input:
-                                print("Waiting for authorization to start tracking...")
-                                cv2.waitKey(0) # wait for key press to continue
+                                input("Press Enter to continue...")
                         
                         time.sleep(0.2) # otherwise the calibration will be too fast
                     else:
@@ -288,7 +289,6 @@ class Client:
                 break
         
         cv2.destroyAllWindows()
-
 
 
 

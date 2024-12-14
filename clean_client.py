@@ -2,10 +2,13 @@
 from client_utils import *
 
 CHOIX_FLUX = [3] # 0: full, 1: cropped, 2: data 3: fusion
-show_person = False
-wait_for_input = True
+show_person = True
+wait_for_input = False
+# IP_address = "10.11.6.148"
+IP_address = "172.20.10.6"
 
-client = Client(show_person, wait_for_input)
+
+client = Client(show_person, wait_for_input, IP_address)
 
 
 if __name__ == "__main__":
