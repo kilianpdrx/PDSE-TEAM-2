@@ -7,6 +7,7 @@ import threading
 import json
 import serial
 import math
+import sys
 
 from ai_camera import IMX500Detector
 
@@ -26,10 +27,18 @@ center_x=320
 center_y=240
 w=640
 h=480
+MAX_BOX = 470 # normalement 480 mais un peu moins pour avoir de la marge
 
-DELAY = 0.01
+DELAY = 0.001
 HUMAN_SIZE = 1.87
 CONVERSION_FACTOR = 0.00024 
+
+
+
+counter_lost = 0
+THRESHOLD_LOST = 50
+TRACKING_LOST_PERSON = -2
+CLIENT_NOT_CONNECTED_ID = -3
 
 
 client_connected = False
@@ -39,7 +48,7 @@ app = Flask(__name__)
 
 
 
-frame_queue = Queue(maxsize=10)
+frame_queue = Queue(maxsize=1)
 receiver_queue = Queue(maxsize=10)
 
 # Associe une URL (/video_feed) à une fonction Python
@@ -85,12 +94,15 @@ def calculate_distance(human_size, height_box):
     if height_box <= 0:
         raise ValueError("La valeur en pixels doit être strictement positive.")
     
-    # fonction affine pour la conversion de pixels en mètres
+    
     coeff = -0.02
     ordo = 6.3
-
-    # Calcul de la distance A VERIFIER
-    distance = coeff * (height_box/human_size) + ordo
+    # fonction affine pour la conversion de pixels en mètres
+    if height_box > MAX_BOX:
+        distance = 0
+    else:
+        distance = coeff * (height_box/human_size) + ordo
+    
     return distance
 
 # Thread pour capturer les frames et leurs données
@@ -160,9 +172,6 @@ def video_feed():
             print("Client déconnecté (full feed).")
         finally:
             client_connected = False
-            camera.stop()
-            print("Arrêt de la caméra (full feed).")
-            exit()
 
     return Response(generate_full_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -193,9 +202,7 @@ def cropped_feed():
             print("Client déconnecté (cropped feed).")
         finally:
             client_connected = False
-            camera.stop()
-            print("Arrêt de la caméra (cropped feed).")
-            exit()
+
 
     return Response(generate_cropped_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -211,8 +218,6 @@ def fusion():
                     cropped_frames, extra_data = frame_queue.get()  # Récupérer frame et valeur supplémentaire
 
                     for cropped in cropped_frames:
-                        # Générer un identifiant unique
-                        image_id = uuid.uuid4().hex
 
 
                         # Récupérer la valeur spécifique à envoyer
@@ -240,15 +245,18 @@ def fusion():
             client_connected = False
             camera.stop()
             print("Arrêt de la caméra.")
-            exit()
+            ardu_talk(0, 0, CLIENT_NOT_CONNECTED_ID) # We tell the arduino that the client is disconnected
+            sys.exit()
 
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 
+
 @app.route('/update_data', methods=['POST'])
 def update_data():
-    live = time.time()
+    global client_connected
+
     try:
         # Lire les données JSON envoyées
         data = request.json
@@ -263,13 +271,24 @@ def update_data():
             print(f"Distance calculée : {prof:.2f} mètres")
 
             # angle = calculate_angle(x_distance, prof)
-            # print(f"Angle calculé : {math.degrees(angle):.2f} degrés")
-
             mdist = CONVERSION_FACTOR * x_distance
-
-            ardu_talk(prof, mdist, tracking)
-            print("Temps de réponse : ", time.time() - live)
-
+            
+            
+            
+            if client_connected:
+                if tracking == 1:
+                    counter_lost = 0
+                else:
+                    counter_lost += 1
+                
+                if counter_lost < THRESHOLD_LOST:
+                    ardu_talk(prof, mdist, tracking)
+                else:
+                    ardu_talk(0, 0, TRACKING_LOST_PERSON)
+            else:
+                print("Client non connected")
+                ardu_talk(0, 0, CLIENT_NOT_CONNECTED_ID)
+            
         # receiver_queue.put(data)
 
         return jsonify({"status": "success", "message": "Données reçues avec succès."}), 200
