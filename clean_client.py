@@ -3,8 +3,9 @@ from client_utils import *
 
 CHOIX_FLUX = [3] # 0: full, 1: cropped, 2: data 3: fusion
 show_person = False
+wait_for_input = True
 
-client = Client()
+client = Client(show_person, wait_for_input)
 
 
 if __name__ == "__main__":
