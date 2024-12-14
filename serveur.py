@@ -26,10 +26,18 @@ center_x=320
 center_y=240
 w=640
 h=480
+MAX_BOX = 470 # normalement 480 mais un peu moins pour avoir de la marge
 
 DELAY = 0.01
 HUMAN_SIZE = 1.87
 CONVERSION_FACTOR = 0.00024 
+
+
+
+counter_lost = 0
+THRESHOLD_LOST = 50
+TRACKING_LOST_PERSON = 0
+
 
 # Configuration Flask
 app = Flask(__name__)
@@ -82,12 +90,15 @@ def calculate_distance(human_size, height_box):
     if height_box <= 0:
         raise ValueError("La valeur en pixels doit être strictement positive.")
     
-    # fonction affine pour la conversion de pixels en mètres
+    
     coeff = -0.02
     ordo = 6.3
-
-    # Calcul de la distance A VERIFIER
-    distance = coeff * (height_box/human_size) + ordo
+    # fonction affine pour la conversion de pixels en mètres
+    if height_box > MAX_BOX:
+        distance = 0
+    else:
+        distance = coeff * (height_box/human_size) + ordo
+    
     return distance
 
 # Thread pour capturer les frames et leurs données
@@ -329,12 +340,23 @@ def update_data():
             print(f"Distance calculée : {prof:.2f} mètres")
 
             # angle = calculate_angle(x_distance, prof)
-            # print(f"Angle calculé : {math.degrees(angle):.2f} degrés")
-
             mdist = CONVERSION_FACTOR * x_distance
-
-            ardu_talk(prof, mdist, tracking)
-            print("Temps de réponse : ", time.time() - live)
+            
+            
+            
+            
+            if tracking == 1:
+                counter_lost = 0
+            else:
+                counter_lost += 1
+            
+            if counter_lost < THRESHOLD_LOST:
+                ardu_talk(prof, mdist, tracking)
+            else:
+                ardu_talk(prof, mdist, TRACKING_LOST_PERSON)
+                
+            
+            # print("Temps de réponse : ", time.time() - live)
 
         # receiver_queue.put(data)
 
