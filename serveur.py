@@ -31,6 +31,9 @@ DELAY = 0.01
 HUMAN_SIZE = 1.87
 CONVERSION_FACTOR = 0.00024 
 
+
+client_connected = False
+
 # Configuration Flask
 app = Flask(__name__)
 
@@ -62,7 +65,7 @@ def ardu_talk(prof, mdist, tracking):
     except Exception as e:
         print(f"Erreur lors de l'envoi des données à l'Arduino : {e}")
 
- 
+
 
 def calculate_angle(xdist, depth):
 
@@ -132,74 +135,14 @@ def capture_frames_and_data():
 
 
 
-# @app.route('/cropped_feed')
-# def cropped_feed():
-#     def generate_cropped_frames():
-#         try:
-#             while True:
-#                 frame, data = frame_queue.get()
-
-#                 detections = camera.get_detections()
-#                 labels = camera.get_labels()
-
-#                 for detection in detections:
-#                     if int(detection.category) > len(labels) - 1:
-#                         continue
-                    
-#                     label = labels[int(detection.category)]
-#                     if label != "person":  # Filtre uniquement pour les personnes
-#                         continue
-
-#                     # Découpe de la personne détectée
-#                     x, y, w, h = detection.box
-#                     label_txt = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
-
-    
-#                     text_x = x + 5
-#                     text_y = y + 15 
-
-
-#                     cv2.putText(frame, label_txt, (text_x, text_y),cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1)
-#                     cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
-
-
-#                     mid_x = int(x + w / 2)
-#                     mid_y = int(y + h / 2)
-                    
-                    
-#                     cv2.circle(frame, (mid_x,mid_y), 5, (255,0,0), -1)  # Dessiner un cercle au centre de la boîte
-#                     cv2.line(frame, (center_x, center_y), (mid_x,mid_y), (0,0,255), 2)  # Ligne de trajectoire (rouge)
-                
-#                     cropped_person = frame[y:y+h, x:x+w]
-
-#                     # Générer un identifiant unique
-#                     image_id = uuid.uuid4().hex
-
-#                     # Encodage de l'image découpée
-#                     _, buffer = cv2.imencode('.jpg', cropped_person)
-
-#                     # Envoi de l'image avec un identifiant unique
-#                     yield (b'--frame\r\n'
-#                            b'Content-Type: image/jpeg\r\n' +
-#                            f'X-Image-ID: {image_id}\r\n\r\n'.encode('utf-8') +
-#                            buffer.tobytes() + b'\r\n')
-
-#                 time.sleep(DELAY)  # Petite pause pour réduire la charge
-
-#         except GeneratorExit:
-#             print("Client déconnecté (cropped feed).")
-#         finally:
-#             camera.stop()
-#             print("Arrêt de la caméra (cropped feed).")
-#             exit()
-
-#     return Response(generate_cropped_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
 
 # Route pour le flux vidéo complet
 @app.route('/full_feed')
 def video_feed():
     def generate_full_frames():
+        global client_connected
+        client_connected = True  # Le client est maintenant connecté
+        
         try:
             while True:
                 frame = camera.picam2.capture_array()
@@ -216,6 +159,7 @@ def video_feed():
         except GeneratorExit:
             print("Client déconnecté (full feed).")
         finally:
+            client_connected = False
             camera.stop()
             print("Arrêt de la caméra (full feed).")
             exit()
@@ -226,6 +170,8 @@ def video_feed():
 @app.route('/cropped_feed')
 def cropped_feed():
     def generate_cropped_frames():
+        global client_connected
+        client_connected = True  # Le client est maintenant connecté
         try:
             while True:
                 if not frame_queue.empty():
@@ -246,6 +192,7 @@ def cropped_feed():
         except GeneratorExit:
             print("Client déconnecté (cropped feed).")
         finally:
+            client_connected = False
             camera.stop()
             print("Arrêt de la caméra (cropped feed).")
             exit()
@@ -256,6 +203,8 @@ def cropped_feed():
 @app.route('/fusion')
 def fusion():
     def generate():
+        global client_connected
+        client_connected = True  # Le client est maintenant connecté
         try:
             while True:
                 if not frame_queue.empty():
@@ -288,27 +237,12 @@ def fusion():
         except Exception as e:
             print(f"Erreur: {e}")
         finally:
+            client_connected = False
             camera.stop()
             print("Arrêt de la caméra.")
             exit()
 
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
-
-# faire ce data la en flot continu 
-# si possible le synchroniser avec le flux video
-@app.route('/data')
-def send_data():
-    def generate_data():
-        while True:
-            if not frame_queue.empty():
-                _, detection_data = frame_queue.get()
-                detection_data['id'] = uuid.uuid4().hex  # Ajouter un identifiant unique
-                yield f"data: {json.dumps(detection_data)}\n\n"
-            time.sleep(DELAY)
-
-    return Response(generate_data(), content_type='text/event-stream')
 
 
 
@@ -319,9 +253,9 @@ def update_data():
         # Lire les données JSON envoyées
         data = request.json
         if 'x_distance' in data and 'height_box' in data and "tracking" in data:
-            # print(f"Distance en pixels : {data['x_distance']}")
-            x_distance = float(data['x_distance'])  # Conversion explicite en int
-            height_box = int(data['height_box'])  # Conversion explicite en int
+            
+            x_distance = float(data['x_distance'])
+            height_box = int(data['height_box'])  
             tracking = int(data['tracking'])
 
 

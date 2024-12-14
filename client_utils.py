@@ -60,7 +60,7 @@ def compare2(frame, extractor, list_target_features):
 
 
 class Client:
-    def __init__(self, show_person=False):
+    def __init__(self, show_person=False, wait_for_input=True):
 
         self.IP = "128.179.209.209"
         
@@ -82,6 +82,7 @@ class Client:
         self.list_target_features = []
         
         self.show_cropped = show_person
+        self.wait_for_input = wait_for_input
         
         
         self.extractor = FeatureExtractor2(
@@ -260,7 +261,12 @@ class Client:
                         if len(self.list_target_features) >= min_number_features:
                             print("Calibration terminée.")
                             calibrated = True
-                            # time.sleep(5)
+                            
+                            if self.wait_for_input:
+                                print("Waiting for authorization to start tracking...")
+                                cv2.waitKey(0) # wait for key press to continue
+                        
+                        time.sleep(0.2) # otherwise the calibration will be too fast
                     else:
                         tracking = compare2(cropped_frame, self.extractor, self.list_target_features)
                         data_to_send = {
