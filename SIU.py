@@ -1,4 +1,5 @@
 from flask import Flask, Response, request, jsonify
+from flask_cors import CORS
 import time
 import cv2
 import uuid
@@ -45,7 +46,7 @@ client_connected = False
 
 # Configuration Flask
 app = Flask(__name__)
-
+CORS(app)
 
 
 frame_queue = Queue(maxsize=1)
@@ -53,6 +54,22 @@ receiver_queue = Queue(maxsize=10)
 
 # Associe une URL (/video_feed) à une fonction Python
 # Quand un utilisateur accède à http://<ip>:5000/video_feed, la fonction video_feed est exécutée.
+
+
+@app.route('/joystick', methods=['POST'])
+def joystick():
+    data = request.json
+    print(f"Joystick data: {data}")
+    return "OK", 200
+
+@app.route('/command', methods=['POST'])
+def command():
+    data = request.json
+    print(f"Command: {data['command']}")
+    return "OK", 200
+
+
+
 
 
 def ardu_talk(prof, mdist, tracking):
@@ -304,6 +321,38 @@ def update_data():
 
 
 
+
+@app.route('/joystick', methods=['POST', 'OPTIONS'])
+def joystick():
+    if request.method == 'OPTIONS':
+        print("Received OPTIONS request.")
+        return jsonify({"status": "success", "message": "CORS preflight"}), 200
+
+    try:
+        data = request.get_json()
+        x = data.get('x')
+        y = data.get('y')
+        print(f"Joystick data received: x={x}, y={y}")
+        return jsonify({"status": "success", "message": "Joystick data received"}), 200
+    except Exception as e:
+        print(f"Error handling joystick data: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@app.route('/command', methods=['POST', 'OPTIONS'])
+def command():
+    if request.method == 'OPTIONS':
+        print("Received OPTIONS request.")
+        return jsonify({"status": "success", "message": "CORS preflight"}), 200
+
+    try:
+        data = request.get_json()
+        command = data.get('command')
+        print(f"Command received: {command}")
+        return jsonify({"status": "success", "message": f"Command {command} received"}), 200
+    except Exception as e:
+        print(f"Error handling command: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 
 
