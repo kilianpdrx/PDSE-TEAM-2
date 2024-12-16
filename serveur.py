@@ -255,7 +255,7 @@ def fusion():
 
 @app.route('/update_data', methods=['POST'])
 def update_data():
-    global client_connected
+    global client_connected, counter_lost
 
     try:
         # Lire les données JSON envoyées
@@ -268,7 +268,7 @@ def update_data():
 
 
             prof = calculate_distance(HUMAN_SIZE, abs(height_box))
-            print(f"Distance calculée : {prof:.2f} mètres")
+            # print(f"Distance calculée : {prof:.2f} mètres")
 
             # angle = calculate_angle(x_distance, prof)
             mdist = CONVERSION_FACTOR * x_distance
