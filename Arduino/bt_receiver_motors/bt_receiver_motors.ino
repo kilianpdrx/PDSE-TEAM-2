@@ -1,4 +1,5 @@
 #include <SoftwareSerial.h>
+#include <math.h>
 
 SoftwareSerial HC05(5, 3); // HC-05 TX Pin, HC-05 RX Pin
 
@@ -64,6 +65,7 @@ void afficherDonnees() {
   Serial.print("Bouton: "); Serial.println(bouton ? "Eteint" : "Actif");
 }
 
+/*
 // Fonction pour contrôler les moteurs en fonction de la position du joystick
 void controlerMoteurs() {
   if (!bouton) { // Si le bouton est actif, on arrête tous les moteurs
@@ -87,6 +89,63 @@ void controlerMoteurs() {
   } else { // Si aucune condition n'est remplie, arrêter les moteurs
     arreterMoteurs();
   }
+}*/
+
+
+// Fonction principale pour contrôler les moteurs en fonction des valeurs du joystick
+void controlerMoteurs() {
+  if (!bouton) { // Si le bouton est actif (pression détectée), arrêter les moteurs
+    arreterMoteurs();
+    return;
+  }
+
+  // Conversion des coordonnées cartésiennes (X, Y) en coordonnées polaires (r, theta)
+  float offsetX = valueX - milieu; // Décalage horizontal par rapport au centre
+  float offsetY = valueY - milieu; // Décalage vertical par rapport au centre
+
+  float r = sqrt(offsetX * offsetX + offsetY * offsetY); // Calcul de la distance (magnitude)
+  float theta = atan2(offsetY, offsetX);                // Calcul de l'angle en radians
+
+  // Si le joystick est dans la zone morte, arrêter les moteurs
+  if (r < delta) {
+    arreterMoteurs();
+    return;
+  }
+
+  // Mise à l'échelle de "r" pour correspondre à la plage de vitesses des moteurs
+  int vitesse = map(r, 0, 2.5, 0, vitesseMax);
+
+  // Calcul des vitesses pour les moteurs gauche et droit
+  float vitesseGauche = vitesse * (sin(theta) + cos(theta)); 
+  float vitesseDroite = vitesse * (sin(theta) - cos(theta)); 
+
+  // Normalisation des vitesses pour rester dans les limites autorisées
+  vitesseGauche = constrain(vitesseGauche, -vitesseMax, vitesseMax);
+  vitesseDroite = constrain(vitesseDroite, -vitesseMax, vitesseMax);
+
+  // Appliquer les vitesses calculées aux moteurs
+  controlerMoteursAvecVitesse(vitesseGauche, vitesseDroite);
+}
+
+// Fonction pour appliquer les vitesses calculées aux moteurs gauche et droit
+void controlerMoteursAvecVitesse(float vitesseGauche, float vitesseDroite) {
+  // Contrôle du moteur gauche
+  if (vitesseGauche > 0) {
+    analogWrite(motor1Pin1, vitesseGauche); 
+    digitalWrite(motor1Pin2, LOW);        
+  } else {
+    analogWrite(motor1Pin2, -vitesseGauche); 
+    digitalWrite(motor1Pin1, LOW);           
+  }
+
+  // Contrôle du moteur droit
+  if (vitesseDroite > 0) {
+    analogWrite(motor2Pin1, vitesseDroite); 
+    digitalWrite(motor2Pin2, LOW);         
+  } else {
+    analogWrite(motor2Pin2, -vitesseDroite); 
+    digitalWrite(motor2Pin1, LOW);           
+  }
 }
 
 // Fonction pour arrêter tous les moteurs
@@ -97,6 +156,7 @@ void arreterMoteurs() {
   digitalWrite(motor2Pin2, LOW);
 }
 
+/*
 // Fonction pour faire avancer les moteurs avant avec une vitesse variable
 void avancer(int vitesse) {
   analogWrite(motor1Pin1, vitesse);
@@ -128,3 +188,12 @@ void tournerGauche(int vitesse) {
   analogWrite(motor2Pin1, vitesse);
   digitalWrite(motor2Pin2, LOW);
 }
+*/
+
+
+
+
+
+
+
+
