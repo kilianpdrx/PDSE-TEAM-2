@@ -148,6 +148,7 @@ void setup() {
 
 void loop() {
 
+  // get the values from the app and the RP
   process_app();
   process_RP();
 
@@ -169,21 +170,11 @@ void loop() {
   }
 
 
-  // digitalWrite(LED_BUILTIN, light);
-  // if (!initialTestDone) {  //Initial move
-  //   InitialMoveTest(100);
-  //   initialTestDone = true;
-  // }
-  // moveMotors(10000,10000);
-
-
   if (millis() - lastPIDTime >= 500) {  // PID compute every 100 ms
     lastPIDTime = millis();
     unsigned long startTime = micros();
     PID_calAdjust(Xdist, Ydist, Vx, Vy);      //PID running 2-3 ms
     unsigned long endTime = micros();
-    Serial.print("PID time:");
-    Serial.print(endTime-startTime);
     
   }
 
@@ -211,7 +202,6 @@ void process_app() {
       manual = readBuffer.substring(indexMANUAL + 7).toInt();
     }
   }
-
 }
 
 // Fonction pour afficher les valeurs reçues pour le débogage
@@ -236,7 +226,7 @@ void process_RP(){
       mdist = data.substring(firstSeparator + 1, secondSeparator).toFloat(); // Extraire la deuxième valeur
       tracking = data.substring(secondSeparator + 1).toFloat(); // Extraire la troisième valeur
       
-      // Afficher les valeurs reçues
+      // Sending back the values to the RP for monitoring
       Serial.print("Profondeur: ");
       Serial.print(prof);
       Serial.print(" m, X_dist: ");
