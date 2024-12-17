@@ -3,8 +3,8 @@ from client_utils import *
 
 CHOIX_FLUX = [3] # 0: full, 1: cropped, 2: data 3: fusion
 show_person = True
-wait_for_input = False
-IP_address = "10.11.6.148"
+wait_for_input = True
+IP_address = "128.179.210.13"
 # IP_address = "172.20.10.6"
 
 

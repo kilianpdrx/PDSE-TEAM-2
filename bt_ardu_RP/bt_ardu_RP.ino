@@ -1,7 +1,7 @@
 #include <SoftwareSerial.h>
 
 // Configuration du Bluetooth (SoftwareSerial sur les pins 10 et 11)
-SoftwareSerial HC05(5, 3); // HC-05 TX Pin, HC-05 RX Pin
+SoftwareSerial HC05(13, 9); // HC-05 TX Pin, HC-05 RX Pin
 
 
 // variables for the app
