@@ -1,13 +1,35 @@
-/*     The controller sets the delay between steps, you may notice the motor is less responsive to changes in the sensor value at low speeds.
- */
+#include <SoftwareSerial.h>
 #include <AccelStepper.h>
 #include <elapsedMillis.h>
 #include <PID_v1_bc.h>
 #include <TimerOne.h>
 
-float prof = -1;
-float mdist = -1;
-int tracking = -1;
+
+
+// Configuration du Bluetooth (SoftwareSerial sur les pins 10 et 11)
+SoftwareSerial HC05(13, 9); // HC-05 TX Pin, HC-05 RX Pin
+
+
+// variables for the app
+String readBuffer = "";
+float valueX, valueY;
+bool bouton;
+float delta = 0.2;
+const float milieu = 2.5;
+int manual = 0;
+int stop_all = 0;
+
+// variables for the RP
+float prof = -1;       // Profondeur
+float mdist = -1;      // Distance X
+int tracking = -1;   // Suivi actif
+
+float Xdist = 0, Ydist = 0;  // in 
+float Vx = 0.1, Vy = 1;        // in m/s
+float Sensordist;
+
+
+
 
 elapsedMillis printTime;
 // Define robot parameters
@@ -86,7 +108,18 @@ unsigned long lastPIDTime = 0;
 unsigned long lastSensorTime = 0;
 unsigned long lastRaspTime = 0;
 
+
+
+
+
 void setup() {
+
+  Serial.begin(9600);
+  HC05.begin(9600);
+
+
+
+
 
   setSpeedAcceleration(default_maxSpeedLimit, default_Acceleration, default_maxSpeedLimit, default_Acceleration);
   pinMode(ena_left, OUTPUT);  // Enable the driver (LOW = enabled), can be used to restart the driver
@@ -111,18 +144,77 @@ void setup() {
   pinMode(trig2, OUTPUT);  
 	pinMode(echo2, INPUT);  
   pinMode(LED_BUILTIN, OUTPUT);
-
-  Serial.begin(9600);  //For test display
-
 }
-
-  float Xdist = 2, Ydist = 2;  // in m
-  float Vx = 0.1, Vy = 1;        // in m/s
-  float Sensordist;
 
 void loop() {
 
-  // Read from external
+  // get the values from the app and the RP
+  process_app();
+  process_RP();
+
+  // FSM
+  if (stop_all == 1){ // KILLSWITCH
+    HC05.println("STOP");
+  }
+  else {
+    if (manual == 1){ // MANUAL MODE
+      HC05.println("Manual mode");
+    }
+    else { // AUTO MODE
+      if (tracking == -2) { // IF LOST
+        HC05.println("LOST, go back to the frame");
+      } else if (tracking == 1){ // NORMAL FOLLOWING MODE
+        HC05.println("I follow you");
+      }
+    }
+  }
+
+
+  if (millis() - lastPIDTime >= 500) {  // PID compute every 100 ms
+    lastPIDTime = millis();
+    unsigned long startTime = micros();
+    PID_calAdjust(Xdist, Ydist, Vx, Vy);      //PID running 2-3 ms
+    unsigned long endTime = micros();
+    
+  }
+
+
+  delay(200); // NECESSARY
+}
+
+
+// Fonction pour extraire les valeurs de X, Y et Bouton du message
+void process_app() {
+  if (HC05.available()) {
+    readBuffer = HC05.readStringUntil('e'); // Lire jusqu'au délimiteur de fin 'e'
+    int indexX = readBuffer.indexOf("X:");
+    int indexY = readBuffer.indexOf("Y:");
+    int indexB = readBuffer.indexOf("B:");
+
+    int indexSTOP = readBuffer.indexOf("STOP:");
+    int indexMANUAL = readBuffer.indexOf("MANUAL:");
+
+    if (indexX != -1 && indexY != -1 && indexB != -1) { // Si toutes les valeurs sont présentes
+      valueX = readBuffer.substring(indexX + 2, indexY - 1).toFloat();
+      valueY = readBuffer.substring(indexY + 2, indexB - 1).toFloat();
+      bouton = readBuffer.substring(indexB + 2, indexSTOP - 1).toInt(); // Convertir en entier pour obtenir 0 ou 1
+      stop_all = readBuffer.substring(indexSTOP + 5, indexMANUAL - 1).toInt();
+      manual = readBuffer.substring(indexMANUAL + 7).toInt();
+    }
+  }
+}
+
+// Fonction pour afficher les valeurs reçues pour le débogage
+void afficherDonnees_app() {
+  Serial.print("Axe X: "); Serial.print(valueX); Serial.print("V, ");
+  Serial.print("Axe Y: "); Serial.print(valueY); Serial.print("V, ");
+  Serial.print("Bouton: "); Serial.println(bouton ? "Eteint" : "Actif");
+  Serial.print("Manual: "); Serial.println(manual ? "Manual" : "Auto");
+  Serial.print("KILL: "); Serial.println(stop_all ? "ON" : "OFF");
+}
+
+
+void process_RP(){
   if (Serial.available() > 0) {
     String data = Serial.readStringUntil('\n'); // Lire une ligne complète
     
@@ -134,7 +226,7 @@ void loop() {
       mdist = data.substring(firstSeparator + 1, secondSeparator).toFloat(); // Extraire la deuxième valeur
       tracking = data.substring(secondSeparator + 1).toFloat(); // Extraire la troisième valeur
       
-      // Afficher les valeurs reçues
+      // Sending back the values to the RP for monitoring
       Serial.print("Profondeur: ");
       Serial.print(prof);
       Serial.print(" m, X_dist: ");
@@ -146,104 +238,8 @@ void loop() {
       Ydist= prof;
     }
   }
-  
-  /**************************************************************************************************************************/
-  //Distance sequence generation
-  //Xdist = random (0, 1000)/ 1000.0;
-  //Ydist = random (0, 3000)/ 1000.0;
-/*
-   //  Read from Raspberry
-    if (millis() - lastRaspTime >= 500) { // Read every 100 ms
-        lastRaspTime = millis();
-
-        if(Ydist >= 0){
-              Ydist = Ydist - 0.2; 
-        }
-        Xdist = Xdist - 0.02;
-
-        //readRaspberry();
-    }
-  
-  /**************************************************************************************************************************/
-  /**************************************************************************************************************************/
-  
-  digitalWrite(LED_BUILTIN, light);
-  if (!initialTestDone) {  //Initial move
-    InitialMoveTest(100);
-    initialTestDone = true;
-  }
-  moveMotors(10000,10000);
-  /*  // Prioritize motor control
-  if ((obstacle == true || Ydist <= 0.6) && motorenable == true)  //emergency brake
-  {
-    light = true;
-    disableMotors();
-    motorenable = false;
-  } 
-  else if(motorenable == true){
-    moveMotors(10000,10000);
-  leftwheel.run();
-  rightwheel.run();
-  }
-  else if (motorenable == false && obstacle == false) {
-    enableMotors();
-    motorenable = true;
-    light = false;
-  }
-
-*/
-
-
-
-  /**************************************************************************************************************************/
-  //   Sensor commands
-/*
-  if (millis() - lastSensorTime >= 1000) {  // Update sensor every 500 ms
-    lastSensorTime = millis();
-
-      unsigned long startTime = micros();
-    obstacleDetection();
-    unsigned long endTime = micros();
-    Serial.println("Sensor time:");
-    Serial.print(endTime-startTime);
 }
 
-
-/**************************************************************************************************************************/
-
-  // speed control PID
-  if (millis() - lastPIDTime >= 500) {  // PID compute every 100 ms
-    lastPIDTime = millis();
-    unsigned long startTime = micros();
-    PID_calAdjust(Xdist, Ydist, Vx, Vy);      //PID running 2-3 ms
-    unsigned long endTime = micros();
-    Serial.print("PID time:");
-    Serial.print(endTime-startTime);
-    
-  }
-
-
-/*
-  if (printTime >= 1000) {  // print every second for test
-    printTime = 0;
-    // display the updated speed and acceleration to the motors
-    // Debugging output (optional, for monitoring the system)
-    Serial.print("Distance: ");
-    Serial.print(Xdist);
-    Serial.print(", ");
-    Serial.print(Ydist);
-    Serial.println(" | Car_Speed: ");
-    Serial.print(linear_speed);
-    Serial.print(" | Turning: ");
-    Serial.print(angular_speed);
-    Serial.println(" | Acceleration: ");
-    Serial.print(L_Acceleration);
-    Serial.print(", ");
-    Serial.println(R_Acceleration);
-  }
-/**************************************************************************************************************************/
-
-}
 
 void PID_calAdjust(float Xdistance, float Ydistance, float V_x, float V_y) {
   //Linear speed control
@@ -370,3 +366,4 @@ void obstacleDetection(){
     obstacle = false;
   }
 }
+
