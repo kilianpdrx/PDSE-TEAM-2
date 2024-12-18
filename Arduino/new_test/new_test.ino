@@ -23,6 +23,10 @@ int stop_all = 0;
 float prof = -1;    // Profondeur
 float mdist = -1;   // Distance X
 int tracking = -1;  // Suivi actif
+int index = 0;
+
+float Xdist = 0, Ydist = 0.8;  // in m
+float speedfactor = 305 / 300;
 
 
 
@@ -111,8 +115,8 @@ void setup() {
   digitalWrite(ena_right, LOW);
 
 
-  Timer1.initialize(800);  //trigger ever microsecond
-  Timer1.attachInterrupt(Motorsrun);
+  //Timer1.initialize(800);  //trigger ever microsecond
+  //Timer1.attachInterrupt(Motorsrun);
 
   /**************************************************************************************************************************/
   //sensor setups
@@ -125,9 +129,7 @@ void setup() {
   pinMode(buzzer, OUTPUT);
 }
 
-float Xdist = 0, Ydist = 0.8;  // in m
-int track = 0;                 //
-float speedfactor = 305 / 300;
+
 
 void loop() {
 
@@ -135,93 +137,65 @@ void loop() {
   process_app();
   process_RP();
 
+  enableMotors();
+
   // FSM
   if (stop_all == 1) {  // KILLSWITCH
     HC05.println("STOP");
+    disableMotors();
+    setSpeedAcceleration(0, 1000, 0, 1000);
+    digitalWrite(buzzer, LOW);
   } else {
     if (manual == 1) {  // MANUAL MODE
       HC05.println("Manual mode");
-    } else {                 // AUTO MODE
+    } else {  // AUTO MODE
       if (tracking == -2) {  // IF LOST
         HC05.println("LOST, go back to the frame");
+        Serial.println("I AM LOST");
+
+        disableMotors();
+
       } else if (tracking == 1) {  // NORMAL FOLLOWING MODE
         HC05.println("I follow you");
+        digitalWrite(buzzer, LOW);
+        
+        Serial.print("I AM TRACKING = 1");
+        Serial.println(Ydist);
+
+        if (Ydist <= SAFE_DISTANCE_MIN) {
+          disableMotors();
+          setSpeedAcceleration(0, 1000, 0, 1000);
+          Serial.println("I AM TRACKING < SAFE_MIN");
+        }
+        else if (Ydist > SAFE_DISTANCE_MAX) {
+          enableMotors();
+          linear_speed = 500;
+          angular_speed = atan2(Xdist, Ydist) * 0.03;
+          Stepps_R = linear_speed + (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Right wheel rotation speed (rad/s) ~170*angular_speed
+          Stepps_R = Stepps_R * speedfactor;
+          Stepps_L = linear_speed - (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Left wheel rotation speed (rad/s)
+          setSpeedAcceleration(Stepps_L, 100, Stepps_R, 100);
+          Serial.println("I AM TRACKING > SAFE_MAX");
+        }
+        else {
+          enableMotors();
+          linear_speed = 200*(Ydist - 1);
+          angular_speed = atan2(Xdist, Ydist) * 0.3;
+          Stepps_R = linear_speed + (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Right wheel rotation speed (rad/s) ~170*angular_speed
+          Stepps_R = Stepps_R * speedfactor;
+          Stepps_L = linear_speed - (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Left wheel rotation speed (rad/s)
+          setSpeedAcceleration(Stepps_L, 100, Stepps_R, 100);
+          Serial.println("I AM TRACKING > SAFE_MAX");
+        }
+        rightwheel.run();
+        leftwheel.run();
       }
     }
   }
 
-  delay(200);  // NECESSARY
-
-  digitalWrite(LED_BUILTIN, light);
-  if (obstacle == true) {
-    disableMotors();
-    light = true;
-    setSpeedAcceleration(0, 1000, 0, 1000);
-    digitalWrite(buzzer, HIGH);
-    delay(1000);
-    digitalWrite(buzzer, LOW);
-
-  } else {
-    light = false;
-    enableMotors();
-    if (track == 1)  //camera working
-    {
-      if (Ydist <= SAFE_DISTANCE_MIN) {
-        disableMotors();
-        setSpeedAcceleration(0, 1000, 0, 1000);
-
-      }
-
-      else if (Ydist > SAFE_DISTANCE_MAX) {
-        enableMotors();
-        linear_speed = 500;
-        angular_speed = atan2(Xdist, Ydist) * 0.03;
-        Stepps_R = linear_speed + (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Right wheel rotation speed (rad/s) ~170*angular_speed
-        Stepps_R = Stepps_R * speedfactor;
-        Stepps_L = linear_speed - (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Left wheel rotation speed (rad/s)
-        setSpeedAcceleration(Stepps_L, 100, Stepps_R, 100);
-      }
-
-      else {
-        enableMotors();
-        linear_speed = (Ydist - 1) * 200;
-        angular_speed = atan2(Xdist, Ydist) * 0.3;
-        Stepps_R = linear_speed + (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Right wheel rotation speed (rad/s)
-        Stepps_R = Stepps_R * speedfactor;
-        Stepps_L = linear_speed - (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Left wheel rotation speed (rad/s)
-        setSpeedAcceleration(Stepps_L, 100, Stepps_R, 100);
-      }
-      moveMotors(1000000, 1000000);
-    }
-
-    else if (track == -2) {  // person not tracked
-      digitalWrite(buzzer, HIGH);
-      linear_speed = 100;
-      angular_speed = 0;
-      Stepps_R = linear_speed + (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Right wheel rotation speed (rad/s)
-      Stepps_L = linear_speed - (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Left wheel rotation speed (rad/s)
-      setSpeedAcceleration(Stepps_L, 1000, Stepps_R, 1000);
-      digitalWrite(buzzer, LOW);
-      moveMotors(1000000, 1000000);
-    } else {
-      disableMotors();
-      setSpeedAcceleration(0, 1000, 0, 1000);
-    }
-
-    /*********************************************************************************************/
-    //Sensor reading
-    if (millis() - lastSensorTime >= 500) {  // Update sensor every 500 ms
-      lastSensorTime = millis();
-
-      unsigned long startTime = micros();
-      obstacleDetection();
-      unsigned long endTime = micros();
-      //Serial.println("Sensor time:");
-      //Serial.print(endTime - startTime);
-    }
-  }
-
+  delay(100);  // NECESSARY
 }
+
 
 
   // Fonction pour extraire les valeurs de X, Y et Bouton du message
@@ -268,13 +242,17 @@ void loop() {
 
       int firstSeparator = data.indexOf(',');                       // Trouver la première virgule
       int secondSeparator = data.indexOf(',', firstSeparator + 1);  // Trouver la deuxième virgule
+      int thirdSeparator = data.indexOf(',', secondSeparator + 1);
 
-      if (firstSeparator != -1 && secondSeparator != -1) {
-        prof = data.substring(0, firstSeparator).toFloat();                     // Extraire la première valeur
-        mdist = data.substring(firstSeparator + 1, secondSeparator).toFloat();  // Extraire la deuxième valeur
-        tracking = data.substring(secondSeparator + 1).toFloat();               // Extraire la troisième valeur
+      if (firstSeparator != -1 && secondSeparator != -1 && thirdSeparator != -1) {
+        index = data.substring(0, firstSeparator).toInt();   
+        prof = data.substring(firstSeparator + 1, secondSeparator).toFloat();                     // Extraire la première valeur
+        mdist = data.substring(secondSeparator + 1, thirdSeparator).toFloat();  // Extraire la deuxième valeur
+        tracking = data.substring(thirdSeparator + 1).toInt();               // Extraire la troisième valeur
 
         // Sending back the values to the RP for monitoring
+        Serial.print("INDEX: ");
+        Serial.print(index);
         Serial.print("Profondeur: ");
         Serial.print(prof);
         Serial.print(" m, X_dist: ");
@@ -282,9 +260,9 @@ void loop() {
         Serial.print(" m, Tracking: ");
         Serial.println(tracking);
 
+
         Xdist = mdist;
         Ydist = prof;
-        track = tracking;
       }
     }
   }

@@ -188,6 +188,7 @@ class Client:
             boundary = b'--frame'
         
             try:
+                print("Début de la lecture du flux fusion.")
                 for chunk in stream.iter_content(chunk_size=1024):
                     byte_buffer += chunk
 
@@ -221,6 +222,7 @@ class Client:
                         image_array = np.frombuffer(image_data, dtype=np.uint8)
                         frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
                         self.final_queue.put((frame, dist_x, height_box))
+                        print("I read the frame and put it in the queue")
                         
                         # if frame is not None:
                         #     # Afficher l'image et les métadonnées
@@ -244,6 +246,7 @@ class Client:
         global calibrated
         """Affiche les deux flux vidéo et les données JSON dans le terminal."""
         while True:
+            print("Waiting for data...")
             cropped_frame = None
             data = None
             
@@ -279,6 +282,7 @@ class Client:
                         # print(f"Distance en x : {x_dist}")
                     
                     if self.show_cropped:
+                        cropped_frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
                         cv2.imshow("Cropped Person", cropped_frame)
                 # else:
                 #     print("Image recadrée non disponible.")    

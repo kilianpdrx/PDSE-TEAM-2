@@ -159,6 +159,17 @@ void loop() {
   else {
     if (manual == 1){ // MANUAL MODE
       HC05.println("Manual mode");
+
+      rightwheel.setSpeed(300);
+      leftwheel.setSpeed(300);
+      leftwheel.move(100);
+      rightwheel.move(100);
+      while (rightwheel.distanceToGo()!=0){
+          rightwheel.runSpeed();
+          leftwheel.runSpeed();
+      }
+      
+      
     }
     else { // AUTO MODE
       if (tracking == -2) { // IF LOST
@@ -179,7 +190,7 @@ void loop() {
   }
 
 
-  delay(200); // NECESSARY
+  // delay(200); // NECESSARY
 }
 
 
@@ -224,7 +235,9 @@ void process_RP(){
     if (firstSeparator != -1 && secondSeparator != -1) {
       prof = data.substring(0, firstSeparator).toFloat(); // Extraire la première valeur
       mdist = data.substring(firstSeparator + 1, secondSeparator).toFloat(); // Extraire la deuxième valeur
-      tracking = data.substring(secondSeparator + 1).toFloat(); // Extraire la troisième valeur
+      tracking = data.substring(secondSeparator + 1).toInt(); // Extraire la troisième valeur
+
+
       
       // Sending back the values to the RP for monitoring
       Serial.print("Profondeur: ");
