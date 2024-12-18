@@ -1,10 +1,11 @@
 
 from client_utils import *
 
-CHOIX_FLUX = [3] # 0: full, 1: cropped, 2: data 3: fusion
+CHOIX_FLUX = [4] # 0: full, 1: cropped, 2: data 3: fusion, : 4: fusion auto reconnect
 show_person = True
 wait_for_input = True
 IP_address = "128.179.209.34"
+
 # IP_address = "172.20.10.6"
 # http://128.179.209.34:5000/full_feed
 

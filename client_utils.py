@@ -15,16 +15,24 @@ from FE_modif import FeatureExtractor2
 IDED_PERSON = 1
 BAD_PERSON = -1
 
-DO_CALIBRATION = True
 target_features = None  # Caractéristiques de la personne calibrée
 list_target_features = []  # Liste des caractéristiques de la personne calibrée
-min_number_features = 15  # Nombre minimal de features pour la calibration
+min_number_features = 30  # Nombre minimal de features pour la calibration
 calibrated = False  # Statut de calibration
-DELAY = 0.0001
-SIM_THRESHOLD = 0.8
+DELAY = 0.05
+SIM_THRESHOLD = 0.7
+
+
+index_frame = 0
 
 
 def calibrate(extractor, cropped_person):
+    global index_frame
+    # we skip some frames to let the person turn on himself
+    index_frame += 1
+    
+    if index_frame % 30 == 0:
+        return None
     # Détecter les caractéristiques de la personne
     target_features = extractor(cropped_person)
     return target_features
@@ -98,6 +106,7 @@ class Client:
             threading.Thread(target=self.fetch_cropped_feed, daemon=True),
             threading.Thread(target=self.fetch_data_feed, daemon=True),
             threading.Thread(target=self.fetch_final_flux, daemon=True),
+            threading.Thread(target=self.fetch_final_flux_auto, daemon=True)
         ]
         
         self.latest_frame = None
@@ -224,7 +233,7 @@ class Client:
                         frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
                         with self.lock:
                             self.latest_frame = (frame, dist_x, height_box)
-                        print("Updated the latest frame.")
+                        # print("Updated the latest frame.")
                         
                         # self.final_queue.put((frame, dist_x, height_box))
                         # print("I read the frame and put it in the queue")
@@ -237,14 +246,68 @@ class Client:
         else:
             print(f"Erreur : impossible de se connecter au serveur. Code {stream.status_code}")
 
-    
+    def fetch_final_flux_auto(self):
+        """Thread pour le flux fusion avec reconnexion automatique."""
+        while True:
+            try:
+                stream = requests.get(self.urls["fusion"], stream=True, timeout=20)
+                if stream.status_code != 200:
+                    print("Impossible de se connecter au flux fusion.")
+                    time.sleep(2)  # Attendre avant de réessayer
+                    continue
+
+                byte_buffer = b''
+                boundary = b'--frame'
+                print("Début de la lecture du flux fusion.")
+                for chunk in stream.iter_content(chunk_size=1024):
+                    byte_buffer += chunk
+
+                    while boundary in byte_buffer:
+                        # Trouver les délimitations des frames
+                        frame_start = byte_buffer.find(boundary)
+                        frame_end = byte_buffer.find(boundary, frame_start + len(boundary))
+
+                        if frame_end == -1:
+                            break
+
+                        # Extraire une seule frame avec ses en-têtes
+                        frame = byte_buffer[frame_start:frame_end]
+                        byte_buffer = byte_buffer[frame_end:]
+
+                        # Séparer les en-têtes du contenu de l'image
+                        header_end = frame.find(b'\r\n\r\n')
+                        headers = frame[:header_end].decode('utf-8')
+                        image_data = frame[header_end + 4:]
+
+                        # Lire les en-têtes personnalisés
+                        height_box = None
+                        dist_x = None
+                        for line in headers.split('\r\n'):
+                            if line.startswith('X-bbox:'):
+                                height_box = line.split(':', 1)[1].strip()
+                            elif line.startswith('X-dist_x:'):
+                                dist_x = line.split(':', 1)[1].strip()
+
+                        # Décoder l'image
+                        image_array = np.frombuffer(image_data, dtype=np.uint8)
+                        frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+                        with self.lock:
+                            self.latest_frame = (frame, dist_x, height_box)
+                        # print("Updated the latest frame.")
+                        
+                        # self.final_queue.put((frame, dist_x, height_box))
+                        # print("I read the frame and put it in the queue")
+            except requests.RequestException as e:
+                print(f"Erreur de connexion au flux fusion : {e}")
+                time.sleep(2)  # Attendre avant de réessayer
+            except Exception as e:
+                print(f"Erreur inattendue : {e}")
+                time.sleep(2)  # Attendre avant de réessayer
 
     def display_streams2(self):
         global calibrated
         while True:
-            print("Waiting for data...")
             cropped_frame = None
-            data = None
             
             # if not self.final_queue.empty():
             #     cropped_frame, x_dist, height_box = self.final_queue.get()
@@ -258,38 +321,42 @@ class Client:
 
 
             
-            # Calibration
-            if DO_CALIBRATION:
+                # Calibration
                 if cropped_frame is not None:
-                    if not calibrated:
-                        target_features = calibrate(self.extractor, cropped_frame)
-                        if target_features is not None:
-                            self.list_target_features.append(target_features)
-                            print(f"Calibration : {len(self.list_target_features) / min_number_features * 100:.2f}%")
-
-                        if len(self.list_target_features) >= min_number_features:
-                            print("Calibration terminée.")
-                            calibrated = True
-                            
-                            if self.wait_for_input:
-                                input("Press Enter to continue...")
-                        
-                        # time.sleep(0.2) # otherwise the calibration would be too fast
-                    else:
-                        tracking = compare2(cropped_frame, self.extractor, self.list_target_features)
-                        data_to_send = {
-                            "x_distance": x_dist,
-                            "height_box": height_box, 
-                            "tracking": tracking
-                        }
-                        self.send_data_to_server(data_to_send)
-                        # print(f"Distance en x : {x_dist}")
                     
-                    if self.show_cropped:
-                        cropped_frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
-                        cv2.imshow("Cropped Person", cropped_frame)
-                # else:
-                #     print("Image recadrée non disponible.")    
+                    # no one is on the frame but we still display it
+                    if x_dist == -1 or height_box == -1:
+                        continue
+                    else:
+                        if not calibrated:
+                            target_features = calibrate(self.extractor, cropped_frame)
+                            if target_features is not None:
+                                self.list_target_features.append(target_features)
+                                print(f"Calibration : {len(self.list_target_features) / min_number_features * 100:.2f}%")
+                            else: continue # skip the rest of the loop
+                            
+                            if len(self.list_target_features) >= min_number_features:
+                                print("Calibration terminée.")
+                                calibrated = True
+                                
+                                if self.wait_for_input:
+                                    input("Press Enter to continue...")
+                            
+                            # time.sleep(0.2) # otherwise the calibration would be too fast
+                        else:
+                            tracking = compare2(cropped_frame, self.extractor, self.list_target_features)
+                            data_to_send = {
+                                "x_distance": x_dist,
+                                "height_box": height_box, 
+                                "tracking": tracking
+                            }
+                            self.send_data_to_server(data_to_send)
+                            # print(f"Distance en x : {x_dist}")
+                
+                if self.show_cropped:
+                    cropped_frame = cv2.cvtColor(cropped_frame, cv2.COLOR_BGR2RGB)
+                    cv2.imshow("Cropped Person", cropped_frame)
+                        
 
             time.sleep(DELAY)
             # Fermer les fenêtres si 'q' est pressé

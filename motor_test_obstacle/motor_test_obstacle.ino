@@ -3,7 +3,7 @@
 #include <elapsedMillis.h>
 #include <PID_v1_bc.h>
 #include <TimerOne.h>
-
+#define Buffersize 5
 
 
 // Configuration du Bluetooth (SoftwareSerial sur les pins 10 et 11)
@@ -23,10 +23,6 @@ int stop_all = 0;
 float prof = -1;    // Profondeur
 float mdist = -1;   // Distance X
 int tracking = -1;  // Suivi actif
-int index = 0;
-
-float Xdist = 0, Ydist = 0.8;  // in m
-float speedfactor = 305 / 300;
 
 
 
@@ -38,7 +34,7 @@ const double wheel_diameter = 0.14;  //Wheel size
 /**************************************************************************************************************************/
 // Obstacle Detection Parameters
 float distance1, duration1, distance2, duration2;
-bool obstacle = true;
+bool obstacle = false;
 /**************************************************************************************************************************/
 // Driver Connection Pins (constant current, step/direction bipolar motor driver)
 const int dirPin_left = 11, stepPin_left = 12;
@@ -50,8 +46,8 @@ AccelStepper leftwheel(AccelStepper::DRIVER, stepPin_left, dirPin_left);
 AccelStepper rightwheel(AccelStepper::DRIVER, stepPin_right, dirPin_right);  //current position set as 0, enable signal
 /**************************************************************************************************************************/
 // Sensor connection Pins
-const int trig1 = 7;
-const int echo1 = 8;
+const int trig1 = 8;
+const int echo1 = 7;
 
 //const int trig2 = 6;
 //const int echo2 = 7;
@@ -59,7 +55,7 @@ const int echo1 = 8;
 bool light = false;
 const int buzzer = 2;
 /**************************************************************************************************************************/
-void obstacleDetection();
+bool obstacleDetection();
 /**************************************************************************************************************************/
 //elapsedMillis printTime;
 
@@ -100,6 +96,21 @@ unsigned long lastPIDTime = 0;
 unsigned long lastSensorTime = 0;
 unsigned long lastRaspTime = 0;
 
+float inputBuffer[Buffersize]; // buffer size
+int bufferindex = 0;
+
+int smoothInput (float newInput)
+{
+  inputBuffer[bufferindex] = newInput;
+  bufferindex = (bufferindex +1)% Buffersize;
+
+  float sum = 0;
+  for (int i = 0; i < Buffersize; i++){
+    sum += inputBuffer [i];
+  }
+  return sum / Buffersize;
+}
+
 void setup() {
 
   Serial.begin(9600);
@@ -115,7 +126,7 @@ void setup() {
   digitalWrite(ena_right, LOW);
 
 
-  //Timer1.initialize(800);  //trigger ever microsecond
+ // Timer1.initialize(800);  //trigger ever microsecond
   //Timer1.attachInterrupt(Motorsrun);
 
   /**************************************************************************************************************************/
@@ -127,145 +138,79 @@ void setup() {
   //pinMode(echo2, INPUT);
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(buzzer, OUTPUT);
+
+  Stepps_L = 500;
+  Stepps_R = 500;
+  R_Acceleration = 300; 
+  L_Acceleration = 300;
+
 }
+
+float Xdist = 0, Ydist = 1;  // in m
+int track = 0;                 //
+float speedfactor = 305 / 300;
+
+
+
+
+
 
 
 
 void loop() {
+    
+  // raspberry_talk();
+  raspberry_talk();
+  obstacle = obstacleDetection();
 
-  // get the values from the app and the RP
-  process_app();
-  process_RP();
+  
+  if(obstacle == 1){
+    setSpeedAcceleration(0, 0, 0, 0);
+  }
+  else{
+    if (track == 1){ // automatic mode 
 
-  enableMotors();
-
-  // FSM
-  if (stop_all == 1) {  // KILLSWITCH
-    HC05.println("STOP");
-    disableMotors();
-    setSpeedAcceleration(0, 1000, 0, 1000);
-    digitalWrite(buzzer, LOW);
-  } else {
-    if (manual == 1) {  // MANUAL MODE
-      HC05.println("Manual mode");
-    } else {  // AUTO MODE
-      if (tracking == -2) {  // IF LOST
-        HC05.println("LOST, go back to the frame");
-        Serial.println("I AM LOST");
-
+      if (Ydist <= SAFE_DISTANCE_MIN) {
+        setSpeedAcceleration(0, 0, 0, 0);
         disableMotors();
 
-      } else if (tracking == 1) {  // NORMAL FOLLOWING MODE
-        HC05.println("I follow you");
-        digitalWrite(buzzer, LOW);
-        
-        Serial.print("I AM TRACKING = 1");
-        Serial.println(Ydist);
+      }
 
-        if (Ydist <= SAFE_DISTANCE_MIN) {
-          disableMotors();
-          setSpeedAcceleration(0, 1000, 0, 1000);
-          Serial.println("I AM TRACKING < SAFE_MIN");
-        }
-        else if (Ydist > SAFE_DISTANCE_MAX) {
-          enableMotors();
-          linear_speed = 500;
-          angular_speed = atan2(Xdist, Ydist) * 0.03;
-          Stepps_R = linear_speed + (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Right wheel rotation speed (rad/s) ~170*angular_speed
-          Stepps_R = Stepps_R * speedfactor;
-          Stepps_L = linear_speed - (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Left wheel rotation speed (rad/s)
-          setSpeedAcceleration(Stepps_L, 100, Stepps_R, 100);
-          Serial.println("I AM TRACKING > SAFE_MAX");
-        }
-        else {
-          enableMotors();
-          linear_speed = 200*(Ydist - 1);
-          angular_speed = atan2(Xdist, Ydist) * 0.3;
-          Stepps_R = linear_speed + (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Right wheel rotation speed (rad/s) ~170*angular_speed
-          Stepps_R = Stepps_R * speedfactor;
-          Stepps_L = linear_speed - (angular_speed * wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Left wheel rotation speed (rad/s)
-          setSpeedAcceleration(Stepps_L, 100, Stepps_R, 100);
-          Serial.println("I AM TRACKING > SAFE_MAX");
-        }
+      else if (Ydist > SAFE_DISTANCE_MAX) {
+        enableMotors();
+        linear_speed = 500;
+        angular_speed = atan2(Xdist, Ydist) * 3;
+        Stepps_R = linear_speed + (angular_speed * 50); //wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Right wheel rotation speed (rad/s) ~170*angular_speed
+        Stepps_R = Stepps_R * speedfactor;
+        Stepps_L = linear_speed - (angular_speed * 50); //wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Left wheel rotation speed (rad/s)
+        setSpeedAcceleration(Stepps_L, 100, Stepps_R, 100);
+      }
+
+      else{
+        enableMotors();
+        linear_speed = (Ydist - 1) * 200;
+        angular_speed = atan2(Xdist, Ydist) * 0.3;
+        Stepps_R = linear_speed + (angular_speed * 50); //wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Right wheel rotation speed (rad/s)
+        Stepps_R = Stepps_R * speedfactor;
+        Stepps_L = linear_speed - (angular_speed * 50);//wheelbase / 2.0 * 400) / wheel_diameter / (PI);  // Left wheel rotation speed (rad/s)
+        setSpeedAcceleration(Stepps_L, 100, Stepps_R, 100);
+      }
+
+      for (int i=0;i<1000;i++){
+        moveMotors(10000, 10000);
         rightwheel.run();
         leftwheel.run();
       }
     }
+    else {
+      setSpeedAcceleration(0, 0, 0, 0);
+      disableMotors();
+    }
   }
+  delay(10);
 
-  delay(100);  // NECESSARY
 }
 
-
-
-  // Fonction pour extraire les valeurs de X, Y et Bouton du message
-  void process_app() {
-    if (HC05.available()) {
-      readBuffer = HC05.readStringUntil('e');  // Lire jusqu'au délimiteur de fin 'e'
-      int indexX = readBuffer.indexOf("X:");
-      int indexY = readBuffer.indexOf("Y:");
-      int indexB = readBuffer.indexOf("B:");
-
-      int indexSTOP = readBuffer.indexOf("STOP:");
-      int indexMANUAL = readBuffer.indexOf("MANUAL:");
-
-      if (indexX != -1 && indexY != -1 && indexB != -1) {  // Si toutes les valeurs sont présentes
-        valueX = readBuffer.substring(indexX + 2, indexY - 1).toFloat();
-        valueY = readBuffer.substring(indexY + 2, indexB - 1).toFloat();
-        bouton = readBuffer.substring(indexB + 2, indexSTOP - 1).toInt();  // Convertir en entier pour obtenir 0 ou 1
-        stop_all = readBuffer.substring(indexSTOP + 5, indexMANUAL - 1).toInt();
-        manual = readBuffer.substring(indexMANUAL + 7).toInt();
-      }
-    }
-  }
-
-  // Fonction pour afficher les valeurs reçues pour le débogage
-  void afficherDonnees_app() {
-    Serial.print("Axe X: ");
-    Serial.print(valueX);
-    Serial.print("V, ");
-    Serial.print("Axe Y: ");
-    Serial.print(valueY);
-    Serial.print("V, ");
-    Serial.print("Bouton: ");
-    Serial.println(bouton ? "Eteint" : "Actif");
-    Serial.print("Manual: ");
-    Serial.println(manual ? "Manual" : "Auto");
-    Serial.print("KILL: ");
-    Serial.println(stop_all ? "ON" : "OFF");
-  }
-
-
-  void process_RP() {
-    if (Serial.available() > 0) {
-      String data = Serial.readStringUntil('\n');  // Lire une ligne complète
-
-      int firstSeparator = data.indexOf(',');                       // Trouver la première virgule
-      int secondSeparator = data.indexOf(',', firstSeparator + 1);  // Trouver la deuxième virgule
-      int thirdSeparator = data.indexOf(',', secondSeparator + 1);
-
-      if (firstSeparator != -1 && secondSeparator != -1 && thirdSeparator != -1) {
-        index = data.substring(0, firstSeparator).toInt();   
-        prof = data.substring(firstSeparator + 1, secondSeparator).toFloat();                     // Extraire la première valeur
-        mdist = data.substring(secondSeparator + 1, thirdSeparator).toFloat();  // Extraire la deuxième valeur
-        tracking = data.substring(thirdSeparator + 1).toInt();               // Extraire la troisième valeur
-
-        // Sending back the values to the RP for monitoring
-        Serial.print("INDEX: ");
-        Serial.print(index);
-        Serial.print("Profondeur: ");
-        Serial.print(prof);
-        Serial.print(" m, X_dist: ");
-        Serial.print(mdist);
-        Serial.print(" m, Tracking: ");
-        Serial.println(tracking);
-
-
-        Xdist = mdist;
-        Ydist = prof;
-      }
-    }
-  }
 
 
   void setSpeedAcceleration(long MyspeedL, long MyAcclL, long MyspeedR, long MyAcclR) {
@@ -313,7 +258,9 @@ void loop() {
     digitalWrite(ena_right, LOW);
   }
 
-  void obstacleDetection() {
+
+
+bool obstacleDetection() {
     digitalWrite(trig1, LOW);
     delayMicroseconds(2);
     digitalWrite(trig1, HIGH);
@@ -326,14 +273,74 @@ void loop() {
   digitalWrite(trig2, HIGH);
   delayMicroseconds(10);
   duration2 = pulseIn(echo2, HIGH);
-/**************************************************************/
+  /**************************************************************/
     distance1 = 0.0343 * duration1 * 0.5;
+    // Serial.println(distance1);
     // distance2 = 0.0343*duration2*0.5;
-
-    if ((distance1 != 0 && distance1 < 60) /*|| (distance2 != 0 && distance2 < 60)*/) {  //60cm = 3500 us
-        obstacle = true;
+    bool res = false;
+  
+    if ((smoothInput(distance1) != 0 && smoothInput(distance1) < 60 )/*|| (distance2 != 0 && distance2 < 60)*/) {  //60cm = 3500 us
+        res = true;
       }
     else {
-      obstacle = false;
+      res = false;
+    }
+    return res;
+  }
+
+void raspberry_talk(){
+    if (Serial.available() > 0) {
+      String data = Serial.readStringUntil('\n');  // Lire une ligne complète
+
+      int firstSeparator = data.indexOf(',');                       // Trouver la première virgule
+      int secondSeparator = data.indexOf(',', firstSeparator + 1);  // Trouver la deuxième virgule
+
+      if (firstSeparator != -1 && secondSeparator != -1) {
+        prof = data.substring(0, firstSeparator).toFloat();                     // Extraire la première valeur
+        mdist = data.substring(firstSeparator + 1, secondSeparator).toFloat();  // Extraire la deuxième valeur
+        tracking = data.substring(secondSeparator + 1).toFloat();               // Extraire la troisième valeur
+
+        // Sending back the values to the RP for monitoring
+        Serial.print("Profondeur: ");
+        Serial.print(prof);
+        Serial.print(" m, X_dist: ");
+        Serial.print(mdist);
+        Serial.print(" m, Tracking: ");
+        Serial.println(tracking);
+
+        Xdist = mdist;
+        Ydist = prof;
+        track = tracking;
+      }
     }
   }
+
+void process_RP(){
+  if (Serial.available() > 0) {
+    String data = Serial.readStringUntil('\n'); // Lire une ligne complète
+    
+    int firstSeparator = data.indexOf(',');    // Trouver la première virgule
+    int secondSeparator = data.indexOf(',', firstSeparator + 1); // Trouver la deuxième virgule
+
+    if (firstSeparator != -1 && secondSeparator != -1) {
+      prof = data.substring(0, firstSeparator).toFloat(); // Extraire la première valeur
+      mdist = data.substring(firstSeparator + 1, secondSeparator).toFloat(); // Extraire la deuxième valeur
+      tracking = data.substring(secondSeparator + 1).toInt(); // Extraire la troisième valeur
+
+
+      
+      // Sending back the values to the RP for monitoring
+      Serial.print("Profondeur: ");
+      Serial.print(prof);
+      Serial.print(" m, X_dist: ");
+      Serial.print(mdist);
+      Serial.print(" m, Tracking: ");
+      Serial.println(tracking);
+
+      Xdist= mdist;
+      Ydist= prof;
+      track = tracking;
+    }
+  }
+}
+

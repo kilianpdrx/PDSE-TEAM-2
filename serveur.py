@@ -10,9 +10,12 @@ import math
 import sys
 from collections import deque
 from statistics import mode
+import logging
 
 from ai_camera import IMX500Detector
 
+# so we dont see the logs of the camera in the console
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # ser = serial.Serial('/dev/ttyAMA10',9600,timeout = 1)
 ser = serial.Serial('/dev/ttyACM0',9600,timeout = 1)
@@ -31,11 +34,14 @@ w=640
 h=480
 MAX_BOX = 450 # normalement 480 mais un peu moins pour avoir de la marge
 
-DELAY = 0.001
+DELAY = 0.05
 HUMAN_SIZE = 1.87
-CONVERSION_FACTOR = 0.00024 
+COEFF_MULT = 200
+CONVERSION_FACTOR = 0.00024 * COEFF_MULT
 
-MIN_HZ_VALUE = 0.2
+MIN_HZ_VALUE = 4.0
+
+CALIBRATED = False
 
 
 
@@ -81,10 +87,10 @@ def ardu_talk(prof, mdist, tracking):
         message = f"{prof:.2f},{mdist:.2f},{int(tracking)}\n"  # Format : "distance,angle\n"
 
         IDX += 1
-        print("Before writing")
+        # print("Before writing")
         # Envoyer le message sur le port série
         ser.write(message.encode('utf-8'))
-        print("After writing")
+        # print("After writing")
         print(f"Message envoyé à l'Arduino : {message.strip()}, TRACKING = {tracking}")
 
         # Lire la réponse de l'Arduino (facultatif)
@@ -309,7 +315,7 @@ def fusion():
         client_connected = True  # Le client est maintenant connecté
         try:
             while True:
-                print("I'm getting a frame")
+                # print("I'm getting a frame")
                 
                 try:
                     frame = camera.picam2.capture_array()
@@ -325,67 +331,81 @@ def fusion():
                 detection_data = {"detections": []}
                 list_persons = []
 
-                for detection in detections:
-                    if int(detection.category) > len(labels) - 1:
-                        continue
-                    
-                    label = labels[int(detection.category)]
-                    if label != "person":  # Filtre uniquement pour les personnes
-                        continue
-                    
-                    x, y, w, h = detection.box
-                    if frame is not None and frame.shape[0] > 0 and frame.shape[1] > 0:
-                        if y >= 0 and y + h <= frame.shape[0] and x >= 0 and x + w <= frame.shape[1]:
-                            cropped_person = frame[y:y+h, x:x+w]
-                            
-                            # Encodage du recadré pour éviter la perte d'information
-                            _, buffer = cv2.imencode('.jpg', cropped_person)
-                            list_persons.append(buffer.tobytes())
-                        else:
-                            print(f"Erreur : Région de découpage invalide (x: {x}, y: {y}, w: {w}, h: {h}).")
+                if detections is not None:
+                    for detection in detections:
+                        if int(detection.category) > len(labels) - 1:
                             continue
-                    else:
-                        print("Erreur : La frame est vide ou invalide.")
-                        continue
-                    
-                    # Encodage du recadré pour éviter la perte d'information
-                    
-                    detection_data['detections'].append({
-                        "label": label,
-                        "bbox": [x, y, w, h]
-                    })
-            
-
-                    for cropped in list_persons:
-                        # Récupérer la valeur spécifique à envoyer
-                        detections = detection_data.get("detections", [])
-                        for detection in detections:
-                            bbox = detection.get("bbox", [])
-                            x, y, w, h = bbox
-
-                            val_send = x+w/2 - center_x
-
-                        # Ajouter la valeur en tant qu'en-tête personnalisé
-                        print("je vais yield poto")
-                        yield (b'--frame\r\n'
-                               b'Content-Type: image/jpeg\r\n' +
-                               f'X-bbox: {h}\r\n'.encode('utf-8') +
-                               f'X-dist_x: {val_send}\r\n'.encode('utf-8') +
-                               b'\r\n' +
-                               cropped + b'\r\n')
-                        print("J'ai fini de yield")
                         
+                        label = labels[int(detection.category)]
+                        if label != "person":  # Filtre uniquement pour les personnes
+                            continue
+                        
+                        x, y, w, h = detection.box
+                        if frame is not None and frame.shape[0] > 0 and frame.shape[1] > 0:
+                            if y >= 0 and y + h <= frame.shape[0] and x >= 0 and x + w <= frame.shape[1]:
+                                cropped_person = frame[y:y+h, x:x+w]
+                                
+                                # Encodage du recadré pour éviter la perte d'information
+                                _, buffer = cv2.imencode('.jpg', cropped_person)
+                                list_persons.append(buffer.tobytes())
+                            else:
+                                print(f"Erreur : Région de découpage invalide (x: {x}, y: {y}, w: {w}, h: {h}).")
+                                continue
+                        else:
+                            print("Erreur : La frame est vide ou invalide.")
+                            continue
+                        
+                        # Encodage du recadré pour éviter la perte d'information
+                        
+                        detection_data['detections'].append({
+                            "label": label,
+                            "bbox": [x, y, w, h]
+                        })
+                
+
+                        for cropped in list_persons:
+                            # Récupérer la valeur spécifique à envoyer
+                            detections = detection_data.get("detections", [])
+                            for detection in detections:
+                                bbox = detection.get("bbox", [])
+                                x, y, w, h = bbox
+
+                                val_send = x+w/2 - center_x
+
+                            # Ajouter la valeur en tant qu'en-tête personnalisé
+                            # print("je vais yield poto")
+                            yield (b'--frame\r\n'
+                                b'Content-Type: image/jpeg\r\n' +
+                                f'X-bbox: {h}\r\n'.encode('utf-8') +
+                                f'X-dist_x: {val_send}\r\n'.encode('utf-8') +
+                                b'\r\n' +
+                                cropped + b'\r\n')
+                            # print("J'ai fini de yield")
+                else:
+                    print("No one on the frame")
+                    _, buffer = cv2.imencode('.jpg', frame)
+                    image = buffer.tobytes()
+                    yield (b'--frame\r\n'
+                        b'Content-Type: image/jpeg\r\n' +
+                        f'X-bbox: {-1}\r\n'.encode('utf-8') +
+                        f'X-dist_x: {-1}\r\n'.encode('utf-8') +
+                        b'\r\n' +
+                        image + b'\r\n')
+                    # print("J'ai fini de yield")
+                    
+                    
                 time.sleep(DELAY)
         except GeneratorExit:
+            client_connected = False
             print("Client déconnecté.")
         except Exception as e:
             print(f"Erreur: {e}")
         finally:
-            client_connected = False
+            print("1 je met à False")
             camera.stop()
             print("Arrêt de la caméra.")
             ardu_talk(0, 0, CLIENT_NOT_CONNECTED_ID) # We tell the arduino that the client is disconnected
-            sys.exit()
+            # sys.exit()
 
     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -395,7 +415,7 @@ def fusion():
 @app.route('/update_data', methods=['POST'])
 def update_data():
     global client_connected, counter_lost
-    print("I'm trying to read something")
+    # print("I'm trying to read something")
 
     try:
         # Lire les données JSON envoyées
@@ -405,19 +425,10 @@ def update_data():
             x_distance = float(data['x_distance'])
             height_box = int(data['height_box'])  
             tracking = int(data['tracking'])
+            
+            
+            # print("I'm trying to send to the arduino")
 
-
-            prof = calculate_distance(HUMAN_SIZE, abs(height_box))
-            # print(f"Distance calculée : {prof:.2f} mètres")
-
-            # angle = calculate_angle(x_distance, prof)
-            mdist = CONVERSION_FACTOR * x_distance
-            
-            
-            print("I'm trying to send to the arduino")
-            
-            
-            
             if client_connected:
                 if tracking == 1:
                     counter_lost = 0
@@ -430,10 +441,13 @@ def update_data():
                 print("Client non connected")
                 tracking = CLIENT_NOT_CONNECTED_ID
             
+            prof = calculate_distance(HUMAN_SIZE, abs(height_box))
+            mdist = CONVERSION_FACTOR * x_distance
+            
             track_send = smooth_tracking(tracking)
             ardu_talk(prof, mdist, track_send)
                 
-            print("I sent to the arduino")
+            # print("I sent to the arduino")
             
             
         else:
