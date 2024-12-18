@@ -68,7 +68,7 @@ class IMX500Detector:
         if self.intrinsics.preserve_aspect_ratio:
             self.imx500.set_auto_aspect_ratio()
             
-        self.picam2.pre_callback = self._draw_detections_modif
+        self.picam2.pre_callback = self._vide
     
 
 
