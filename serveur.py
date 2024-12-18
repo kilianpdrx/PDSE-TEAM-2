@@ -8,6 +8,8 @@ import json
 import serial
 import math
 import sys
+from collections import deque
+from statistics import mode
 
 from ai_camera import IMX500Detector
 
@@ -38,7 +40,7 @@ MIN_HZ_VALUE = 0.2
 
 
 counter_lost = 0
-THRESHOLD_LOST = 100
+THRESHOLD_LOST = 40
 TRACKING_LOST_PERSON = -2
 CLIENT_NOT_CONNECTED_ID = -3
 
@@ -57,6 +59,10 @@ receiver_queue = Queue(maxsize=10)
 
 # Associe une URL (/video_feed) à une fonction Python
 # Quand un utilisateur accède à http://<ip>:5000/video_feed, la fonction video_feed est exécutée.
+
+HISTOGRAM_WINDOW_SIZE = 20
+tracking_history = deque(maxlen=HISTOGRAM_WINDOW_SIZE)
+
 
 
 def ardu_talk(prof, mdist, tracking):
@@ -88,6 +94,25 @@ def ardu_talk(prof, mdist, tracking):
 
     except Exception as e:
         print(f"Erreur lors de l'envoi des données à l'Arduino : {e}")
+
+
+def smooth_tracking(new_value):
+    """
+    Met à jour l'historique des valeurs de tracking et renvoie la valeur la plus fréquente.
+    
+    :param new_value: La nouvelle valeur de tracking à ajouter.
+    :return: La valeur la plus fréquente dans la fenêtre d'historique.
+    """
+    # Ajouter la nouvelle valeur à l'historique
+    tracking_history.append(new_value)
+    
+    # Calculer la valeur la plus fréquente
+    try:
+        most_frequent_value = mode(tracking_history)
+    except:
+        most_frequent_value = None  # Si aucune valeur présente
+    
+    return most_frequent_value
 
 
 
@@ -144,11 +169,20 @@ def capture_frames_and_data():
                     continue
                 
                 x, y, w, h = detection.box
-                cropped_person = frame[y:y+h, x:x+w]
-                
+                if frame is not None and frame.shape[0] > 0 and frame.shape[1] > 0:
+                    if y >= 0 and y + h <= frame.shape[0] and x >= 0 and x + w <= frame.shape[1]:
+                        cropped_person = frame[y:y+h, x:x+w]
+                        
+                        # Encodage du recadré pour éviter la perte d'information
+                        _, buffer = cv2.imencode('.jpg', cropped_person)
+                        list_persons.append(buffer.tobytes())
+                    else:
+                        print(f"Erreur : Région de découpage invalide (x: {x}, y: {y}, w: {w}, h: {h}).")
+                        continue
+                else:
+                    print("Erreur : La frame est vide ou invalide.")
+                    continue
                 # Encodage du recadré pour éviter la perte d'information
-                _, buffer = cv2.imencode('.jpg', cropped_person)
-                list_persons.append(buffer.tobytes())
                 
                 detection_data['detections'].append({
                     "label": label,
@@ -275,9 +309,13 @@ def fusion():
         client_connected = True  # Le client est maintenant connecté
         try:
             while True:
-                print("Im getting a frame")
+                print("I'm getting a frame")
                 
-                frame = camera.picam2.capture_array()
+                try:
+                    frame = camera.picam2.capture_array()
+                except Exception as e:
+                    print(f"Erreur lors de la capture d'une image : {e}")
+                    continue
             
                 # Détection des objets
                 detections = camera.get_detections()
@@ -296,11 +334,21 @@ def fusion():
                         continue
                     
                     x, y, w, h = detection.box
-                    cropped_person = frame[y:y+h, x:x+w]
+                    if frame is not None and frame.shape[0] > 0 and frame.shape[1] > 0:
+                        if y >= 0 and y + h <= frame.shape[0] and x >= 0 and x + w <= frame.shape[1]:
+                            cropped_person = frame[y:y+h, x:x+w]
+                            
+                            # Encodage du recadré pour éviter la perte d'information
+                            _, buffer = cv2.imencode('.jpg', cropped_person)
+                            list_persons.append(buffer.tobytes())
+                        else:
+                            print(f"Erreur : Région de découpage invalide (x: {x}, y: {y}, w: {w}, h: {h}).")
+                            continue
+                    else:
+                        print("Erreur : La frame est vide ou invalide.")
+                        continue
                     
                     # Encodage du recadré pour éviter la perte d'information
-                    _, buffer = cv2.imencode('.jpg', cropped_person)
-                    list_persons.append(buffer.tobytes())
                     
                     detection_data['detections'].append({
                         "label": label,
@@ -318,12 +366,14 @@ def fusion():
                             val_send = x+w/2 - center_x
 
                         # Ajouter la valeur en tant qu'en-tête personnalisé
+                        print("je vais yield poto")
                         yield (b'--frame\r\n'
                                b'Content-Type: image/jpeg\r\n' +
                                f'X-bbox: {h}\r\n'.encode('utf-8') +
                                f'X-dist_x: {val_send}\r\n'.encode('utf-8') +
                                b'\r\n' +
                                cropped + b'\r\n')
+                        print("J'ai fini de yield")
                         
                 time.sleep(DELAY)
         except GeneratorExit:
@@ -365,21 +415,27 @@ def update_data():
             
             
             print("I'm trying to send to the arduino")
+            
+            
+            
             if client_connected:
                 if tracking == 1:
                     counter_lost = 0
                 else:
                     counter_lost += 1
                 
-                if counter_lost < THRESHOLD_LOST:
-                    if tracking == 1:
-                        ardu_talk(prof, mdist, tracking)
-                else:
-                    ardu_talk(0, 0, TRACKING_LOST_PERSON)
+                if counter_lost > THRESHOLD_LOST:
+                    tracking = TRACKING_LOST_PERSON
             else:
                 print("Client non connected")
-                ardu_talk(0, 0, CLIENT_NOT_CONNECTED_ID)
+                tracking = CLIENT_NOT_CONNECTED_ID
+            
+            track_send = smooth_tracking(tracking)
+            ardu_talk(prof, mdist, track_send)
+                
             print("I sent to the arduino")
+            
+            
         else:
             print("I read nothing bro") 
 

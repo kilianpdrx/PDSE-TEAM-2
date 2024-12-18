@@ -21,7 +21,7 @@ list_target_features = []  # Liste des caractéristiques de la personne calibré
 min_number_features = 15  # Nombre minimal de features pour la calibration
 calibrated = False  # Statut de calibration
 DELAY = 0.0001
-SIM_THRESHOLD = 0.7
+SIM_THRESHOLD = 0.8
 
 
 def calibrate(extractor, cropped_person):
@@ -77,7 +77,7 @@ class Client:
         self.full_frame_queue = queue.Queue(maxsize=1)
         self.cropped_frame_queue = queue.Queue(maxsize=1)
         self.data_queue = queue.Queue(maxsize=1)
-        self.final_queue = queue.Queue(maxsize=1)
+        self.final_queue = queue.Queue(maxsize=1000)
 
         
         self.list_target_features = []
@@ -100,7 +100,8 @@ class Client:
             threading.Thread(target=self.fetch_final_flux, daemon=True),
         ]
         
-    
+        self.latest_frame = None
+        self.lock = threading.Lock()
     
     
     
@@ -221,17 +222,13 @@ class Client:
                         # Décoder l'image
                         image_array = np.frombuffer(image_data, dtype=np.uint8)
                         frame = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-                        self.final_queue.put((frame, dist_x, height_box))
-                        print("I read the frame and put it in the queue")
+                        with self.lock:
+                            self.latest_frame = (frame, dist_x, height_box)
+                        print("Updated the latest frame.")
                         
-                        # if frame is not None:
-                        #     # Afficher l'image et les métadonnées
-                        #     print(f"Image ID: {image_id}, Extra Value: {extra_value}")
-                        #     cv2.imshow('Frame', frame)
-
-                        #     # Arrêter la boucle si 'q' est pressé
-                        #     if cv2.waitKey(1) & 0xFF == ord('q'):
-                        #         break
+                        # self.final_queue.put((frame, dist_x, height_box))
+                        # print("I read the frame and put it in the queue")
+                        
             except Exception as e:
                 print(f"Erreur lors du traitement : {e}")
             finally:
@@ -244,14 +241,21 @@ class Client:
 
     def display_streams2(self):
         global calibrated
-        """Affiche les deux flux vidéo et les données JSON dans le terminal."""
         while True:
             print("Waiting for data...")
             cropped_frame = None
             data = None
             
-            if not self.final_queue.empty():
-                cropped_frame, x_dist, height_box = self.final_queue.get()
+            # if not self.final_queue.empty():
+            #     cropped_frame, x_dist, height_box = self.final_queue.get()
+            
+            with self.lock:
+                latest_frame = self.latest_frame
+            
+            if latest_frame is not None:
+                # Décomposer les valeurs si elles existent
+                cropped_frame, x_dist, height_box = latest_frame
+
 
             
             # Calibration
@@ -270,7 +274,7 @@ class Client:
                             if self.wait_for_input:
                                 input("Press Enter to continue...")
                         
-                        time.sleep(0.2) # otherwise the calibration will be too fast
+                        # time.sleep(0.2) # otherwise the calibration would be too fast
                     else:
                         tracking = compare2(cropped_frame, self.extractor, self.list_target_features)
                         data_to_send = {
