@@ -18,7 +18,7 @@ import PIL
 import pickle
 # import partial
 
-
+"""All the functions are from torchreid folder. We commented out the functions that are not used in our code."""
 
 
 from models import build_model

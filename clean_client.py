@@ -1,12 +1,11 @@
 
 from client_utils import *
 
-CHOIX_FLUX = [4] # 0: full, 1: cropped, 2: data 3: fusion, : 4: fusion auto reconnect
+CHOIX_FLUX = [1] # 0: full, 1: fusion auto reconnect
 show_person = True
 wait_for_input = True
 IP_address = "128.179.209.34"
 
-# IP_address = "172.20.10.6"
 # http://128.179.209.34:5000/full_feed
 
 
@@ -15,8 +14,9 @@ client = Client(show_person, wait_for_input, IP_address)
 
 if __name__ == "__main__":
     
+    # to start the threads
     for t in CHOIX_FLUX:
         client.threads[t].start()
 
-    # Thread principal pour afficher les flux et les données
-    client.display_streams2()
+    # main function
+    client.display_streams()

@@ -125,43 +125,43 @@ class IMX500Detector:
         ]
         return self.last_detections
 
-    # def _draw_detections(self, request, stream="main"):
-    #     """Internal method to draw detections"""
-    #     if self.last_results is None:
-    #         return
+    def _draw_detections(self, request, stream="main"):
+        """Internal method to draw detections"""
+        if self.last_results is None:
+            return
             
-    #     labels = self.get_labels()
-    #     with MappedArray(request, stream) as m:
+        labels = self.get_labels()
+        with MappedArray(request, stream) as m:
 
-    #         for detection in self.last_results:
-    #             x, y, w, h = detection.box
-    #             label = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
+            for detection in self.last_results:
+                x, y, w, h = detection.box
+                label = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
 
-    #             (text_width, text_height), baseline = cv2.getTextSize(
-    #                 label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
-    #             )
-    #             text_x = x + 5
-    #             text_y = y + 15
+                (text_width, text_height), baseline = cv2.getTextSize(
+                    label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
+                )
+                text_x = x + 5
+                text_y = y + 15
 
-    #             overlay = m.array.copy()
-    #             cv2.rectangle(
-    #                 overlay,
-    #                 (text_x, text_y - text_height),
-    #                 (text_x + text_width, text_y + baseline),
-    #                 (255, 255, 255),
-    #                 cv2.FILLED
-    #             )
+                overlay = m.array.copy()
+                cv2.rectangle(
+                    overlay,
+                    (text_x, text_y - text_height),
+                    (text_x + text_width, text_y + baseline),
+                    (255, 255, 255),
+                    cv2.FILLED
+                )
 
-    #             alpha = 0.30
-    #             cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
-    #             cv2.putText(
-    #                 m.array, label, (text_x, text_y),
-    #                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1
-    #             )
-    #             cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
+                alpha = 0.30
+                cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
+                cv2.putText(
+                    m.array, label, (text_x, text_y),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1
+                )
+                cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
     
     def _draw_detections_modif(self, request, stream="main"):
-        """Internal method to draw detections"""
+        """Internal method to draw detections with trajectory"""
 
         center_x=320
         center_y=240
@@ -177,8 +177,8 @@ class IMX500Detector:
             
             self.act_frame = m.array.copy()
             
-            cv2.line(m.array, (center_x, 0), (center_x, h), GREEN, 1)  # Ligne verticale (vert)
-            cv2.line(m.array, (0, center_y), (w, center_y), GREEN, 1)  # Ligne horizontale (vert)
+            cv2.line(m.array, (center_x, 0), (center_x, h), GREEN, 1)  # vertical line
+            cv2.line(m.array, (0, center_y), (w, center_y), GREEN, 1)  # horizontal line
     
 
 
@@ -209,97 +209,13 @@ class IMX500Detector:
                 mid_y = int(y + h / 2)
                 
                 
-                cv2.circle(m.array, (mid_x,mid_y), 5, BLUE, -1)  # Dessiner un cercle au centre de la boîte
-                cv2.line(m.array, (center_x, center_y), (mid_x,mid_y), RED, 2)  # Ligne de trajectoire (rouge)
+                cv2.circle(m.array, (mid_x,mid_y), 5, BLUE, -1)  # draw a circle at the center of the box
+                cv2.line(m.array, (center_x, center_y), (mid_x,mid_y), RED, 2)  # trajectory line (red)
             
-
-    def _get_before(self, request, stream="main"):
-        """Internal method to draw detections"""
-
-        center_x=320
-        center_y=240
-        w=640
-        h=480
-
-
-        if self.last_results is None:
-            return
-            
-        labels = self.get_labels()
-        with MappedArray(request, stream) as m:
-            
-            self.act_frame = m.array.copy()
-            # features, cp = self.calibrate(self.last_results, self.extractor)
-
-            cv2.line(m.array, (center_x, 0), (center_x, h), GREEN, 1)  # Ligne verticale (vert)
-            cv2.line(m.array, (0, center_y), (w, center_y), GREEN, 1)  # Ligne horizontale (vert)
-    
-
-
-            for detection in self.last_results:
-                if int(detection.category) > len(labels)-1:
-                    continue
-                label = labels[int(detection.category)]
-                if label != "person": #we are only interested in people
-                    continue
-
-                x, y, w, h = detection.box
-                label_txt = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
-
-                (text_width, text_height), baseline = cv2.getTextSize(label_txt, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-                text_x = x + 5
-                text_y = y + 15 
-
-                overlay = m.array.copy()
-                cv2.rectangle(overlay,(text_x, text_y - text_height),(text_x + text_width, text_y + baseline),BLACK,cv2.FILLED)
-
-                alpha = 0.30
-                cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
-                cv2.putText(m.array, label_txt, (text_x, text_y),cv2.FONT_HERSHEY_SIMPLEX, 0.5, RED, 1)
-                cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
-
-
-                mid_x = int(x + w / 2)
-                mid_y = int(y + h / 2)
-                
-                
-                cv2.circle(m.array, (mid_x,mid_y), 5, BLUE, -1)  # Dessiner un cercle au centre de la boîte
-                cv2.line(m.array, (center_x, center_y), (mid_x,mid_y), RED, 2)  # Ligne de trajectoire (rouge)
-    
+    # if we don't want to do anything
     def _vide(self, request, stream="main"):
         pass
 
-    def calibrate(self, detections, extractor):
-        """Calibrer en extrayant les caractéristiques d'une personne."""
-
-      
-        if len(detections) != 1:  # Assurez-vous qu'une seule personne est devant la caméra
-            return None, None
-
-
-        labels = self.get_labels()
-
-
-        if self.act_frame is not None:
-            for detection in detections:
-                if int(detection.category) > len(labels)-1:
-                        continue
-                
-                label = labels[int(detection.category)]
-                if label != "person": #we are only interested in people
-                    continue
-
-                x, y, w, h = detection.box
-                cropped_person = self.act_frame[y:y+h, x:x+w]
-                if cropped_person.size != 0:
-                    features = extractor(cropped_person)
-                else:
-                    return None, None
-            return features, cropped_person
-
-
-
-      
 
 
 
