@@ -10,8 +10,6 @@ This folder contains the code related to the following feature. The main scripts
 This folder contains the Finite State Machine allowing motor control via raspberry pi reading and sensor outputs.
 
 
-
-
-
-
-The file calibration.m is used to make the linear approximations for the estimation of the user's distance from the camera.
+### Others
+-  PDSE.apk : the mobile app ready to be installed (only for android)
+-  calibration.m : used to make the linear approximations for the estimation of the user's distance from the camera.
