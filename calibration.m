@@ -64,16 +64,20 @@ legend("All measurements", "After thresholding", "Linear approximation")
 
 figure(3)
 hold on;
-plot(final_x, y_fit_k, 'm--')
-plot(final_x, y_fit_v, 'g--')
+box on;
+axis([200 480 0 4]);
+plot(final_x, y_fit_k, 'm--', LineWidth=2)
+plot(final_x, y_fit_v, 'g--', LineWidth=2)
 
-
-xlabel("Pixels [px]");
-ylabel("Distance [m]")
+ax = gca;
+ax.FontSize = 16; 
+xlabel("Pixels [px]", FontSize=20);
+ylabel("Depth [m]", FontSize=20)
 xline(480)
+xline(450, LineWidth=2)
 yline(0)
-title("Comparison linear approximations", FontSize=15)
-legend("Kilian", "Victoria")
+% title("Depth estimation", FontSize=20)
+legend("Person 1", "Person 2", FontSize=15)
 
 
 %% Relation with height
