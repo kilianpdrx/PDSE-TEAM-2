@@ -6,6 +6,9 @@ loads safely and efficiently in public indoor spaces. The code present in this r
 ### Computer vision
 This folder contains the code related to the following feature. The main scripts are serveur.py and clean_client.py, which are used as the web client/server interface.
 
+### FinalVersion
+This folder contains the Finite State Machine allowing motor control via raspberry pi reading and sensor outputs.
+
 
 
 
