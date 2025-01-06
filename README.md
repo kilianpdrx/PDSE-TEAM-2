@@ -1,5 +1,13 @@
-All the code for our project, separated in different folders
+This repository contains the code for the project realized by Kilian Pouderoux, Benjamin Deprez, Lucas Shang, Gaëlle Pillon and Tirui Wang as part of the course Products Design and Systems Engineering given at EPFL during the fall 2024/2025 semester.
 
- - Arduino : all the arduino code, each sketch has its own folder
+This project introduces an autonomous robotic platform designed to assist users in carrying heavy
+loads safely and efficiently in public indoor spaces. The code present in this repository concerns the prototype realized for the in-class demonstration.
 
- token github : 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
+### Computer vision
+This folder contains the code related to the following feature. The main scripts are serveur.py and clean_client.py, which are used as the web client/server interface.
+
+
+
+
+
+
