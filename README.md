@@ -11,3 +11,4 @@ This folder contains the code related to the following feature. The main scripts
 
 
 
+The file calibration.m is used to make the linear approximations for the estimation of the user's distance from the camera.
