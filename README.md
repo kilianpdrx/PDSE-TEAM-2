@@ -9,7 +9,9 @@ This folder contains the code related to the following feature. The main scripts
 ### MotorFSM
 This folder contains the Finite State Machine allowing motor control via raspberry pi reading and sensor outputs.
 
-
 ### Others
 -  PDSE.apk : the mobile app ready to be installed (only for android)
 -  calibration.m : used to make the linear approximations for the estimation of the user's distance from the camera.
+
+### Joystick_working
+This contains the code to control the robot through the app
