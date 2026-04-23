@@ -43,13 +43,13 @@
 
 ## Overview
 
-CarriE is an autonomous robotic platform designed to help users transport heavy loads — luggage, shopping bags, suitcases — through large public indoor environments such as airports, shopping malls, and train stations. The user briefly calibrates the robot's camera to their appearance, then simply walks: CarriE autonomously follows them, maintaining a safe distance and avoiding obstacles along the way.
+CarriE is an autonomous robotic platform designed to help users transport heavy loads (luggage, shopping bags, suitcases...)through large public indoor environments such as airports, shopping malls, and train stations. The user briefly calibrates the robot's camera to their appearance, then simply walks: CarriE autonomously follows them, maintaining a safe distance and avoiding obstacles along the way.
 
-The concept is built around a **rental model**: robots are stationed at strategic hubs across public spaces. Users rent a unit via a mobile app, load their belongings (up to **30 kg**), and return it at any drop-off terminal at the end of their trip — similar to a bike-sharing system but for cargo.
+The concept is built around a **rental model**: robots are stationed at strategic hubs across public spaces. Users rent a unit via a mobile app, load their belongings (up to **30 kg**), and return it at any drop-off terminal at the end of their trip, similar to a bike-sharing system but for cargo.
 
 Should the robot lose sight of the user or encounter an obstacle it cannot handle, it stops and alerts the user via buzzer, allowing them to take manual control through the companion app.
 
-> Built as a prototype for the EPFL course *"Products Design and Systems Engineering in a Team"* (PDSE), this project spans mechanical design, embedded systems, computer vision, and mobile development — all integrated from scratch in a single semester.
+> Built as a prototype for the EPFL course *"Products Design and Systems Engineering in a Team"* (PDSE), this project spans mechanical design, embedded systems, computer vision, and mobile development, all integrated from scratch in a single semester.
 
 ---
 
@@ -217,7 +217,7 @@ The joystick firmware (`Joystick_working.ino`) maps X/Y values to differential w
 
 ## Team
 
-**CarriE** was designed and built by Group 02 of the EPFL Microengineering Master programme:
+**CarriE** was designed and built by the following team:
 
 | Name |
 |---|
@@ -238,7 +238,7 @@ The joystick firmware (`Joystick_working.ino`) maps X/Y values to differential w
 
 The complete 59-page project report covers the product concept, market analysis, all technical design decisions, manufacturing, intellectual property analysis, business plan, and project management.
 
-📄 [`02_final_report.pdf`](../02_final_report.pdf)
+📄 [`02_final_report.pdf`](docs/02_final_report.pdf)
 
 Topics include:
 - Technical and functional requirements (structure, propulsion, control, safety)
